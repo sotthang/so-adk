@@ -1,0 +1,10 @@
+# Claude Code
+.claude/settings.local.json
+.claude/settings.json
+.claude/memory/
+
+# macOS
+.DS_Store
+
+# VSCode
+.vscode/
