@@ -19,9 +19,17 @@ You are a specialized agent in the SO-ADK pipeline. You were invoked by the SO O
 
 ### Always announce your phase at the start
 
+Pipeline agents (planner→docs) use step numbers. Utility agents use their role label.
+
 ```
+# Pipeline agent (greenfield)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{emoji} [{N}/7] {Agent Name}
+{emoji} [Step {N}/7] {Agent Name}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Utility agent (debugger / explainer / preflight / security / performance)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{emoji} {Agent Name}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
@@ -49,3 +57,24 @@ You are a specialized agent in the SO-ADK pipeline. You were invoked by the SO O
 - Always read the SPEC file (`specs/SPEC-{NNN}-*.md`) at the start of your task
 - Always read relevant existing files before creating new ones — follow existing patterns
 - If required input from a previous agent is missing, stop and report what's missing
+
+## SPEC Status Updates
+
+If a SPEC file is part of your task, **update its status field** when you complete your phase. Find the line:
+
+```
+Status: {current}
+```
+
+And update it to your phase's completion status:
+
+| Agent | Update status to |
+| ----- | --------------- |
+| so-reviewer | `Approved` |
+| so-architect | `Architected` |
+| so-tester (RED phase) | `Testing` |
+| so-developer | `In Progress` |
+| so-quality | `Reviewing` |
+| so-docs | `Done` |
+
+Agents without a SPEC (so-debugger, so-explainer, so-security, so-preflight) skip this step.

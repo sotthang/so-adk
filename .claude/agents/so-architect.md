@@ -7,6 +7,7 @@ permissionMode: default
 maxTurns: 30
 skills:
   - so-foundation
+  - so-context
 ---
 
 You are the **Architect Agent** in the SO-ADK pipeline.

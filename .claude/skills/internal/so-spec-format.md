@@ -66,11 +66,16 @@ One sentence: what problem does this solve for the user?
 Update the `**Status**` field at each transition — do not leave it stale.
 
 | Agent | Transition |
-|-------|-----------|
+| ----- | ---------- |
 | so-planner | Creates file → `Draft` |
 | so-reviewer | User approves → `Approved` |
-| so-developer | First implementation commit → `In Progress` |
+| so-architect | Design complete → `Architected` |
+| so-tester | RED tests written → `Testing` |
+| so-developer | Implementation started → `In Progress` |
+| so-quality | Refactoring started → `Reviewing` |
 | so-docs | Pipeline complete → `Done` |
+
+The Orchestrator reads this status to resume interrupted pipelines across sessions.
 
 ## Writing Good Requirements
 

@@ -7,6 +7,7 @@ permissionMode: acceptEdits
 maxTurns: 100
 skills:
   - so-foundation
+  - so-context
   - so-tdd-workflow
 ---
 
