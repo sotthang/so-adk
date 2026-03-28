@@ -55,10 +55,12 @@ If the user confirms, resume from the next step after the current status (see Pi
 Before routing, determine if the request is **greenfield** (new feature) or **brownfield** (changes to existing code):
 
 **Greenfield signals** — invoke full pipeline:
+
 - "만들어줘 / 추가해줘 / 새로 / 신규 / build / create / add / new feature"
 - Request describes functionality that does not yet exist
 
 **Brownfield signals** — skip SPEC, go directly to relevant agent:
+
 - "고쳐줘 / 수정해줘 / 바꿔줘 / fix / change / update / modify"
 - "이 함수 / 이 파일 / 이 클래스" (refers to existing code)
 - Debugging, refactoring, or explaining existing code
@@ -82,7 +84,7 @@ Read every user message and classify it:
 | "설명 / 이게 뭐야 / 어떻게 동작해 / explain / what does / how does / 이해가 안 돼" | Invoke `so-explainer` only |
 | "보안 / 취약점 / security / vulnerability / OWASP" | Invoke `so-security` only |
 | "느려 / 타임아웃 / 성능 / 최적화 / slow / timeout / performance / optimize / N+1" | Invoke `so-performance` only |
-| "머지해도 돼? / 배포해도 돼? / 확인해줘 / PR 전에 / ready to merge / preflight" | Invoke `so-preflight` → `so-security` → then `pr` skill if both pass |
+| "머지해도 돼? / 배포해도 돼? / 확인해줘 / PR 전에 / ready to merge / preflight" | Run `so-preflight` + `so-security` in parallel → then `pr` skill if both pass |
 | "상태 / 진행 상황 / 어디까지 / status / progress / what's next" | Show pipeline status inline |
 | "도움말 / help / 뭐할수있어 / 사용법" | Show help guide inline |
 
@@ -134,18 +136,44 @@ After `so-reviewer` completes, **always stop and ask the user**:
 
 Do not proceed to `so-architect` until the user confirms.
 
+**If the user requests SPEC changes** (e.g., "수정해줘", "이 부분 바꿔줘", "다시 작성해줘"):
+
+Invoke `so-planner` again with:
+
+1. The original user request
+2. The current SPEC file path
+3. The reviewer's concerns and the user's change request
+
+After `so-planner` updates the SPEC, invoke `so-reviewer` again automatically. Repeat this loop until the user confirms (max 3 revision cycles — if still unresolved, ask the user if they want to start fresh).
+
 ### Step 5 — Handle loops
 
 If `so-tester` reports failing tests after `so-developer` runs, invoke `so-developer` again with the failure report. Repeat until all tests pass (max 5 loops before asking the user for guidance).
 
-### Step 6 — Security gate on PR
-
-Before creating a PR, always run `so-preflight` then `so-security`. Only invoke the `pr` skill if **both** return GO/PASS.
+**If `so-developer` hits maxTurns without passing tests**, treat it as a loop failure and report:
 
 ```text
+⚠️ Developer Agent이 최대 턴 수에 도달했습니다.
+현재 실패 중인 테스트:
+- {failing test list}
+
+계속 진행하려면 어떻게 할까요?
+1. Developer를 다시 호출 (추가 컨텍스트 제공 가능)
+2. 실패 중인 테스트를 직접 확인
+3. SPEC 요구사항 재검토
+```
+
+Do not loop more than 5 times total. On the 5th failure, stop and ask the user for guidance.
+
+### Step 6 — Security gate on PR
+
+Before creating a PR, run `so-preflight` and `so-security` **in parallel** using two simultaneous Agent tool calls. Only invoke the `pr` skill if **both** return GO/PASS.
+
+```text
+If so-preflight returns NO-GO → stop, report findings, do not create PR
 If so-security returns BLOCK → stop, report findings, do not create PR
 If so-security returns CONDITIONAL → show findings, ask user: "보안 이슈가 있습니다. 그래도 PR을 생성할까요?"
-If so-security returns PASS → proceed to pr skill
+If both return GO/PASS → proceed to pr skill
 ```
 
 ### Step 7 — Complete the pipeline
@@ -167,10 +195,12 @@ SPEC: specs/SPEC-{NNN}-{slug}.md (Done)
 [Greenfield — New Feature]
 [1] so-planner    → requirements → SPEC file (specs/)
 [2] so-reviewer   → SPEC review → ✋ user checkpoint
-[3] so-architect  → file structure + interfaces
+     ↑ loop with so-planner if user requests SPEC changes
+[3] so-architect  → file structure + interfaces → saves .arch.md
+[3.5] so-scaffold → create stub files (only if target files don't exist)
 [4] so-tester     → write failing tests (TDD RED)
 [5] so-developer  → implement until tests pass (TDD GREEN)
-     ↑ loop with so-tester on failure
+     ↑ loop with so-tester on failure (max 5 loops)
 [6] so-quality    → refactor without changing behavior (TDD REFACTOR)
 [7] so-docs       → update docs + SPEC status → Done
 
@@ -180,9 +210,8 @@ SPEC: specs/SPEC-{NNN}-{slug}.md (Done)
 [3] so-quality    → refactor if needed
 
 [Pre-PR Gate]
-[1] so-preflight  → tests + lint check
-[2] so-security   → security review
-[3] pr skill      → only if both pass
+[1] so-preflight + so-security  → run in parallel
+[2] pr skill                    → only if both pass
 ```
 
 ---
@@ -223,8 +252,9 @@ Pass context explicitly when invoking each agent:
 ```text
 so-planner   → saves  specs/SPEC-{NNN}.md
 so-reviewer  → reads  specs/SPEC-{NNN}.md  + updates status → Approved
-so-architect → reads  specs/SPEC-{NNN}.md  + updates status → Architected
-so-tester    → reads  specs/SPEC-{NNN}.md  + architect output  + updates status → Testing
+so-architect → reads  specs/SPEC-{NNN}.md  + saves specs/SPEC-{NNN}.arch.md  + updates status → Architected
+so-scaffold  → reads  specs/SPEC-{NNN}.arch.md  + creates stub files (no SPEC status update)
+so-tester    → reads  specs/SPEC-{NNN}.md  + specs/SPEC-{NNN}.arch.md  + updates status → Testing
 so-developer → reads  test files + specs/SPEC-{NNN}.md  + updates status → In Progress
 so-quality   → reads  all implementation files  + updates status → Reviewing
 so-docs      → reads  specs/SPEC-{NNN}.md  + all changed files  + updates status → Done
@@ -285,7 +315,7 @@ When user asks for help, output this:
   설명      → Explainer Agent
 
 🛡️ PR GATE (자동 실행)
-  Preflight → Security → PR 생성
+  Preflight + Security (병렬) → PR 생성
 
 ⏸️ 세션이 중단되었다면 자동으로 이어서 진행합니다.
 📄 SPEC 파일은 specs/ 폴더에 자동 저장됩니다.
