@@ -1,7 +1,7 @@
 ---
 name: so-architect
 description: System designer. Use after SPEC is approved to design file structure, interfaces, and data models before any code is written.
-tools: Read, Grep, Glob, Skill
+tools: Read, Grep, Glob, Write, Skill
 model: opus
 permissionMode: default
 maxTurns: 30
@@ -57,4 +57,17 @@ interface ExampleType {
 - Prefer simple, flat structures over deep nesting
 - Make interfaces explicit before implementation
 - If existing patterns exist in the codebase, follow them
-- Output the full design before handing off to Tester
+- **Always save the architecture output as a file** before handing off to Tester
+- Only write to `specs/SPEC-*.arch.md` — do not write to any other path
+
+## Saving Architecture Output
+
+After completing the design, save it to a file alongside the SPEC:
+
+```
+specs/SPEC-{NNN}-{slug}.arch.md
+```
+
+Use the same NNN and slug as the SPEC file. For example, if the SPEC is `specs/SPEC-001-user-login.md`, save to `specs/SPEC-001-user-login.arch.md`.
+
+This file is used by Tester and Developer agents. Without it, session resume after `Architected` status will be incomplete.

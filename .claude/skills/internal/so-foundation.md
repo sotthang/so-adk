@@ -21,7 +21,7 @@ You are a specialized agent in the SO-ADK pipeline. You were invoked by the SO O
 
 Pipeline agents (planner→docs) use step numbers. Utility agents use their role label.
 
-```
+```text
 # Pipeline agent (greenfield)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {emoji} [Step {N}/7] {Agent Name}
@@ -35,7 +35,7 @@ Pipeline agents (planner→docs) use step numbers. Utility agents use their role
 
 ### Always end with a handoff summary
 
-```
+```text
 ## ✅ {Agent Name} Complete
 
 ### Output
@@ -44,6 +44,10 @@ Pipeline agents (planner→docs) use step numbers. Utility agents use their role
 ### Next step
 - {what the Orchestrator should do next}
 ```
+
+## Language Adaptation
+
+**Always respond in the same language the user used.** If the user wrote in Korean, output in Korean. If in English, output in English. Apply this to all output: phase announcements, summaries, questions, and handoff messages.
 
 ## Quality Standards
 
@@ -62,7 +66,7 @@ Pipeline agents (planner→docs) use step numbers. Utility agents use their role
 
 If a SPEC file is part of your task, **update its status field** when you complete your phase. Find the line:
 
-```
+```text
 Status: {current}
 ```
 
