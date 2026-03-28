@@ -15,11 +15,12 @@ Just say *"build me a login feature"* and SO-ADK automatically runs the full pip
 ```text
 [Greenfield — New Feature]
 [1] Planner    → analyzes requirements, writes SPEC → saved to specs/
-[2] Reviewer   → reviews the SPEC → pauses for your confirmation ✋
-[3] Architect  → designs file structure and interfaces
+[2] Reviewer   → reviews the SPEC → pauses for your confirmation ✋ (loops with Planner on changes)
+[3] Architect  → designs file structure and interfaces → saves specs/*.arch.md
+[3.5] Scaffold → generates stub file skeleton (for new projects)
 [4] Tester     → writes failing tests first (TDD RED)
 [5] Developer  → implements until tests pass (TDD GREEN)
-     ↑ loops until all tests pass
+     ↑ loops until all tests pass (max 5 loops)
 [6] Quality    → refactors and cleans up (TDD REFACTOR)
 [7] Docs       → updates documentation + marks SPEC as Done
 
@@ -27,7 +28,7 @@ Just say *"build me a login feature"* and SO-ADK automatically runs the full pip
      Debugger / Developer → Tester → Quality (no SPEC needed)
 
 [Pre-PR Gate]
-     Preflight → Security → PR (automatic)
+     Preflight + Security (parallel) → PR (automatic)
 ```
 
 **No binaries. No dependencies. Pure markdown.**
@@ -84,7 +85,7 @@ SO-ADK detects intent from natural language and routes automatically:
 SO-ADK has three layers:
 
 1. **`CLAUDE.md`** — imports the orchestrator. Detects intent, routes to agents, manages the SPEC lifecycle, handles checkpoints and session resume
-2. **`.claude/agents/`** — 11 specialized sub-agents, each a proper Claude Code agent with `model`, `maxTurns`, and `skills`
+2. **`.claude/agents/`** — 12 specialized sub-agents, each a proper Claude Code agent with `model`, `maxTurns`, and `skills`
 3. **`.claude/skills/internal/`** — shared building blocks loaded by agents at startup (foundation principles, TDD workflow, SPEC format rules)
 
 ### Greenfield vs Brownfield
@@ -105,6 +106,7 @@ If a pipeline is interrupted mid-way, SO-ADK detects the in-progress SPEC on the
 | Planner | opus | SPEC quality determines everything downstream |
 | Reviewer | opus | Deep reasoning needed to catch risks |
 | Architect | opus | Design decisions affect the entire implementation |
+| Scaffold | sonnet | Stub file generation, repetitive task |
 | Tester | sonnet | Pattern-based test writing |
 | Developer | sonnet | Iterative implementation loop |
 | Quality | sonnet | Code review and refactoring |
@@ -128,6 +130,7 @@ your-project/
     │   ├── so-planner.md              # Requirements → SPEC (opus)
     │   ├── so-reviewer.md             # SPEC review + checkpoint (opus)
     │   ├── so-architect.md            # File structure + interfaces (opus)
+    │   ├── so-scaffold.md             # Generate stub file skeleton (sonnet)
     │   ├── so-tester.md               # Write failing tests — TDD RED (sonnet)
     │   ├── so-developer.md            # Implement to pass tests — TDD GREEN (sonnet)
     │   ├── so-quality.md              # Refactor — TDD REFACTOR (sonnet)
@@ -158,7 +161,7 @@ your-project/
 - **TDD by default** — tests before implementation, every time
 - **Human checkpoints** — pipeline pauses after Reviewer for your approval
 - **Greenfield/Brownfield aware** — full pipeline for new features, direct routing for existing code
-- **Security gate** — every PR goes through preflight + security review automatically
+- **Security gate** — every PR runs preflight + security in parallel before creation
 
 ---
 
