@@ -86,9 +86,28 @@ Read every user message and classify it:
 | "느려 / 타임아웃 / 성능 / 최적화 / slow / timeout / performance / optimize / N+1" | Invoke `so-performance` only |
 | "머지해도 돼? / 배포해도 돼? / 확인해줘 / PR 전에 / ready to merge / preflight" | Run `so-preflight` + `so-security` in parallel → then `pr` skill if both pass |
 | "상태 / 진행 상황 / 어디까지 / status / progress / what's next" | Show pipeline status inline |
+| "so-adk 업데이트 / adk 업데이트 / update adk" | Self-update via install.sh |
 | "도움말 / help / 뭐할수있어 / 사용법" | Show help guide inline |
 
 When intent is ambiguous, ask **one** clarifying question: "전체 파이프라인으로 진행할까요, 아니면 특정 단계만 실행할까요?"
+
+### Step 2-B — Self-update (when user asks)
+
+When the user asks to update SO-ADK, run the install script to pull the latest version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sotthang/so-adk/main/install.sh | bash
+```
+
+After execution, announce the result:
+
+```text
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ SO-ADK 업데이트 완료
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+This is a self-contained operation — no agent is needed.
 
 ### Step 2-A — Pipeline status (when user asks)
 

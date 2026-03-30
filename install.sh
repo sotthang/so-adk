@@ -64,8 +64,9 @@ else
 fi
 
 # Create specs directory
-mkdir -p "./specs"
+mkdir -p "./specs/archive"
 touch "./specs/.gitkeep"
+touch "./specs/archive/.gitkeep"
 
 echo ""
 echo "✅ SO-ADK installed successfully!"
