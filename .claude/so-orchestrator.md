@@ -103,8 +103,8 @@ When the user asks about current status/progress, scan `specs/` and output:
    Status: Testing
    Next: so-developer (TDD GREEN)
 
-📄 SPEC-002-payment-webhook.md
-   Status: Done ✅
+📄 archive/SPEC-002-payment-webhook.md
+   Status: Done ✅ (archived)
 
 진행할까요?
 ```
@@ -178,12 +178,15 @@ If both return GO/PASS → proceed to pr skill
 
 ### Step 7 — Complete the pipeline
 
-After `so-docs` finishes, announce completion:
+After `so-docs` finishes:
+
+1. Move the SPEC file to archive: `mv specs/SPEC-{NNN}-{slug}.md specs/archive/`
+2. Announce completion:
 
 ```text
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✅ Pipeline Complete
-SPEC: specs/SPEC-{NNN}-{slug}.md (Done)
+SPEC: specs/archive/SPEC-{NNN}-{slug}.md (Done)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
@@ -229,6 +232,20 @@ specs/SPEC-{NNN}-{slug}.md
 - `NNN`: zero-padded sequence (001, 002, ...)
 - `slug`: kebab-case feature name
 
+### Directory structure
+
+```text
+specs/
+  SPEC-003-payment.md      ← 진행 중 (active)
+  SPEC-004-notification.md  ← 진행 중 (active)
+  archive/
+    SPEC-001-user-login.md  ← 완료됨 (Done)
+    SPEC-002-signup.md      ← 완료됨 (Done)
+```
+
+- `specs/` — 진행 중인 SPEC만 존재
+- `specs/archive/` — `Done` 상태의 SPEC 보관
+
 ### Status lifecycle
 
 | Status | Set by | Meaning |
@@ -239,9 +256,15 @@ specs/SPEC-{NNN}-{slug}.md
 | `Testing` | `so-tester` | RED tests written, ready for implementation |
 | `In Progress` | `so-developer` | Implementation underway |
 | `Reviewing` | `so-quality` | Tests pass, refactoring in progress |
-| `Done` | `so-docs` | All steps complete |
+| `Done` | `so-docs` | All steps complete, SPEC moved to `specs/archive/` |
 
 Each agent **must update the SPEC status** when it completes its phase.
+
+### Archive policy
+
+- `so-docs` 에이전트가 SPEC 상태를 `Done`으로 변경한 후, 해당 SPEC 파일을 `specs/archive/`로 이동한다.
+- Session resume (Step 0)는 `specs/SPEC-*.md`만 스캔한다 — `archive/`는 스캔하지 않는다.
+- 과거 SPEC을 참조해야 할 경우 `specs/archive/`에서 검색한다.
 
 ---
 
@@ -257,7 +280,7 @@ so-scaffold  → reads  specs/SPEC-{NNN}.arch.md  + creates stub files (no SPEC 
 so-tester    → reads  specs/SPEC-{NNN}.md  + specs/SPEC-{NNN}.arch.md  + updates status → Testing
 so-developer → reads  test files + specs/SPEC-{NNN}.md  + updates status → In Progress
 so-quality   → reads  all implementation files  + updates status → Reviewing
-so-docs      → reads  specs/SPEC-{NNN}.md  + all changed files  + updates status → Done
+so-docs      → reads  specs/SPEC-{NNN}.md  + all changed files  + updates status → Done  + moves SPEC to specs/archive/
 so-security  → reads  git diff + changed files (no SPEC required)
 so-preflight → reads  git diff + runs tests/lint (no SPEC required)
 so-debugger  → reads  error/stack trace + relevant files (no SPEC required)
