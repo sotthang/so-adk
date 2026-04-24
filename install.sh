@@ -4,8 +4,61 @@ set -e
 # SO-ADK Installer
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/sotthang/so-adk/main/install.sh | bash
+#   install.sh --dry-run-merge <target_dir>  — merge settings.json only, no agent download
 
 REPO="https://raw.githubusercontent.com/sotthang/so-adk/main"
+
+# ── settings.json 병합 함수 ────────────────────────────────────────────────
+SETTINGS_TEMPLATE='{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": ".claude/hooks/post-edit-check.sh" }
+        ]
+      }
+    ]
+  }
+}'
+
+merge_settings_json() {
+  local target_dir="$1"
+  local settings_path="$target_dir/.claude/settings.json"
+  mkdir -p "$target_dir/.claude"
+
+  if [ ! -f "$settings_path" ]; then
+    echo "$SETTINGS_TEMPLATE" > "$settings_path"
+    echo "   ✓ settings.json created from template"
+    return 0
+  fi
+
+  # 기존 파일이 있으면 jq로 병합
+  if command -v jq &>/dev/null; then
+    local hook_entry='{"matcher":"Edit|Write|MultiEdit","hooks":[{"type":"command","command":".claude/hooks/post-edit-check.sh"}]}'
+    local merged
+    merged="$(jq --argjson hook "$hook_entry" \
+      '.hooks.PostToolUse = ((.hooks.PostToolUse // []) + [$hook] | unique_by(.matcher))' \
+      "$settings_path")"
+    echo "$merged" > "$settings_path"
+    echo "   ✓ settings.json merged (existing keys preserved)"
+  else
+    echo "⚠️  jq not found in PATH — cannot auto-merge settings.json" >&2
+    echo "   Please manually merge the following into $settings_path:" >&2
+    echo "$SETTINGS_TEMPLATE" >&2
+  fi
+}
+
+# ── --dry-run-merge 분기 ───────────────────────────────────────────────────
+if [ "${1:-}" = "--dry-run-merge" ]; then
+  TARGET="${2:-}"
+  if [ -z "$TARGET" ] || [ ! -d "$TARGET" ]; then
+    echo "ERROR: --dry-run-merge requires a valid target directory as second argument" >&2
+    exit 1
+  fi
+  merge_settings_json "$TARGET"
+  exit 0
+fi
 
 echo ""
 echo "╔══════════════════════════════════╗"
@@ -37,7 +90,7 @@ done
 
 # Download agent files
 echo "⬇️  Downloading agents..."
-AGENTS=(so-planner so-reviewer so-architect so-tester so-developer so-quality so-docs so-debugger so-explainer so-preflight so-security so-performance)
+AGENTS=(so-planner so-reviewer so-architect so-tester so-developer so-quality so-docs so-debugger so-explainer so-preflight so-security so-performance so-designer so-auditor)
 for agent in "${AGENTS[@]}"; do
   curl -fsSL "$REPO/.claude/agents/${agent}.md" -o "./.claude/agents/${agent}.md"
   echo "   ✓ ${agent}"
@@ -62,6 +115,16 @@ else
   echo "$IMPORT_LINE" > "./CLAUDE.md"
   echo "   ✓ CLAUDE.md created"
 fi
+
+# Download hooks
+echo "⬇️  Downloading hooks..."
+mkdir -p "./.claude/hooks"
+curl -fsSL "$REPO/.claude/hooks/post-edit-check.sh" -o "./.claude/hooks/post-edit-check.sh"
+chmod +x "./.claude/hooks/post-edit-check.sh"
+echo "   ✓ post-edit-check.sh"
+
+# Merge settings.json (PostToolUse hook)
+merge_settings_json "."
 
 # Create specs directory
 mkdir -p "./specs/archive"

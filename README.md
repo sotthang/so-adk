@@ -85,7 +85,7 @@ SO-ADK detects intent from natural language and routes automatically:
 SO-ADK has three layers:
 
 1. **`CLAUDE.md`** — imports the orchestrator. Detects intent, routes to agents, manages the SPEC lifecycle, handles checkpoints and session resume
-2. **`.claude/agents/`** — 12 specialized sub-agents, each a proper Claude Code agent with `model`, `maxTurns`, and `skills`
+2. **`.claude/agents/`** — 14 specialized sub-agents (including Designer and Auditor), each a proper Claude Code agent with `model`, `maxTurns`, and `skills`
 3. **`.claude/skills/internal/`** — shared building blocks loaded by agents at startup (foundation principles, TDD workflow, SPEC format rules)
 
 ### Greenfield vs Brownfield
@@ -106,13 +106,15 @@ If a pipeline is interrupted mid-way, SO-ADK detects the in-progress SPEC on the
 | Planner | opus | SPEC quality determines everything downstream |
 | Reviewer | opus | Deep reasoning needed to catch risks |
 | Architect | opus | Design decisions affect the entire implementation |
+| Designer | sonnet | UI/frontend contract specifications (optional) |
 | Scaffold | sonnet | Stub file generation, repetitive task |
-| Tester | sonnet | Pattern-based test writing |
-| Developer | sonnet | Iterative implementation loop |
+| Tester | sonnet | Pattern-based test writing, acceptance-to-unit pyramid |
+| Developer | sonnet | Iterative implementation loop, auto-lint on edit |
 | Quality | sonnet | Code review and refactoring |
 | Docs | haiku | Documentation writing, cost-efficient |
 | Debugger | sonnet | Root cause analysis and test writing |
 | Explainer | sonnet | Code reading and explanation |
+| Auditor | sonnet | Dead code, stale deps, drift detection (stateless) |
 | Preflight | sonnet | Test/lint runner and diff review |
 | Security | opus | Deep security analysis requires strong reasoning |
 
@@ -124,12 +126,19 @@ If a pipeline is interrupted mid-way, SO-ADK detects the in-progress SPEC on the
 your-project/
 ├── CLAUDE.md                          # @.claude/so-orchestrator.md
 ├── specs/                             # SPEC files saved here automatically
+│   └── archive/                       # Done SPECs moved here
+├── tests/
+│   └── run-checks.sh                  # Smoke test validation (optional)
 └── .claude/
     ├── so-orchestrator.md             # Orchestrator brain
+    ├── settings.json                  # PostToolUse hooks configuration
+    ├── hooks/
+    │   └── post-edit-check.sh         # Auto lint/typecheck on edit
     ├── agents/
     │   ├── so-planner.md              # Requirements → SPEC (opus)
     │   ├── so-reviewer.md             # SPEC review + checkpoint (opus)
     │   ├── so-architect.md            # File structure + interfaces (opus)
+    │   ├── so-designer.md             # UI design contract (sonnet, optional)
     │   ├── so-scaffold.md             # Generate stub file skeleton (sonnet)
     │   ├── so-tester.md               # Write failing tests — TDD RED (sonnet)
     │   ├── so-developer.md            # Implement to pass tests — TDD GREEN (sonnet)
@@ -137,6 +146,7 @@ your-project/
     │   ├── so-docs.md                 # Update documentation (haiku)
     │   ├── so-debugger.md             # Root cause analysis + reproducing test (sonnet)
     │   ├── so-explainer.md            # Code explanation, read-only (sonnet)
+    │   ├── so-auditor.md              # Drift detection (sonnet, optional)
     │   ├── so-preflight.md            # Pre-PR safety check (sonnet)
     │   └── so-security.md             # OWASP security review (opus)
     └── skills/
@@ -152,6 +162,14 @@ your-project/
 
 ---
 
+## Key Features
+
+- **PostToolUse hooks** — Automatically runs lint/typecheck after Developer edits (if tools available)
+- **Outside-In testing** — Acceptance → E2E → unit test pyramid (reverse testing approach)
+- **UI Design specs** — Designer agent creates UI contracts when SPEC includes frontend (optional)
+- **Parallel review mode** — Complex SPECs run Reviewer + Architect simultaneously for faster feedback
+- **Continuous drift detection** — Auditor scans for dead code, stale deps, missed archives (optional)
+
 ## Philosophy
 
 > The engineer's role shifts from writing code to designing the harness: specs, quality gates, and feedback loops.
@@ -162,6 +180,7 @@ your-project/
 - **Human checkpoints** — pipeline pauses after Reviewer for your approval
 - **Greenfield/Brownfield aware** — full pipeline for new features, direct routing for existing code
 - **Security gate** — every PR runs preflight + security in parallel before creation
+- **Feedback loops** — PostToolUse hooks give feedback immediately; Auditor detects drift continuously
 
 ---
 

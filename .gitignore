@@ -8,3 +8,7 @@
 
 # VSCode
 .vscode/
+
+# SO-ADK: archive 폴더 구조는 유지하되 내용은 로컬에만
+specs/archive/*
+!specs/archive/.gitkeep

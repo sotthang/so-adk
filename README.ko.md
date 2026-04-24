@@ -85,7 +85,7 @@ SO-ADK가 자연어에서 의도를 감지하고 자동으로 라우팅합니다
 SO-ADK는 세 가지 레이어로 이루어져 있습니다:
 
 1. **`CLAUDE.md`** — 오케스트레이터를 import합니다. 자연어 의도 감지 → 에이전트 자율 호출 → SPEC 상태 관리 → 체크포인트 및 세션 재개 처리
-2. **`.claude/agents/`** — 12개 전문 에이전트. `model`, `maxTurns`, `skills`가 설정된 정식 Claude Code 에이전트
+2. **`.claude/agents/`** — 14개 전문 에이전트 (Designer, Auditor 포함). `model`, `maxTurns`, `skills`가 설정된 정식 Claude Code 에이전트
 3. **`.claude/skills/internal/`** — 에이전트 시작 시 로드되는 공유 빌딩 블록 (공통 원칙, TDD 워크플로우, SPEC 형식 규칙)
 
 ### Greenfield vs Brownfield 자동 감지
@@ -106,13 +106,15 @@ SO-ADK가 요청 유형을 자동으로 판단합니다:
 | Planner | opus | SPEC 품질이 이후 전체를 결정 |
 | Reviewer | opus | 리스크 탐지에 깊은 추론 필요 |
 | Architect | opus | 설계 결정이 구현 전체에 영향 |
+| Designer | sonnet | UI/프론트엔드 계약 명세 (선택적) |
 | Scaffold | sonnet | stub 파일 생성, 반복 작업 |
-| Tester | sonnet | 패턴 기반 테스트 작성 |
-| Developer | sonnet | 반복 구현 루프 |
+| Tester | sonnet | 패턴 기반 테스트 작성, 인수→단위 역피라미드 |
+| Developer | sonnet | 반복 구현 루프, 편집 직후 자동 린트 |
 | Quality | sonnet | 코드 리뷰 및 리팩토링 |
 | Docs | haiku | 문서 작업, 비용 효율 |
 | Debugger | sonnet | 근본 원인 분석 및 재현 테스트 작성 |
 | Explainer | sonnet | 코드 읽기 및 설명 |
+| Auditor | sonnet | 데드코드, 레거시 의존성, drift 감지 (stateless) |
 | Preflight | sonnet | 테스트/린트 실행 및 diff 검토 |
 | Security | opus | 깊은 보안 분석에 강한 추론 필요 |
 
@@ -124,12 +126,19 @@ SO-ADK가 요청 유형을 자동으로 판단합니다:
 your-project/
 ├── CLAUDE.md                          # @.claude/so-orchestrator.md
 ├── specs/                             # SPEC 파일 자동 저장 폴더
+│   └── archive/                       # 완료된 SPEC 저장소
+├── tests/
+│   └── run-checks.sh                  # Smoke 테스트 검증 (선택적)
 └── .claude/
     ├── so-orchestrator.md             # 오케스트레이터 두뇌
+    ├── settings.json                  # PostToolUse 훅 설정
+    ├── hooks/
+    │   └── post-edit-check.sh         # 편집 후 자동 린트/타입체크
     ├── agents/
     │   ├── so-planner.md              # 요구사항 → SPEC (opus)
     │   ├── so-reviewer.md             # SPEC 검토 + 체크포인트 (opus)
     │   ├── so-architect.md            # 파일 구조 + 인터페이스 (opus)
+    │   ├── so-designer.md             # UI 설계 계약 (sonnet, 선택적)
     │   ├── so-scaffold.md             # stub 파일 골격 생성 (sonnet)
     │   ├── so-tester.md               # 테스트 먼저 작성 — TDD RED (sonnet)
     │   ├── so-developer.md            # 테스트 통과까지 구현 — TDD GREEN (sonnet)
@@ -137,6 +146,7 @@ your-project/
     │   ├── so-docs.md                 # 문서 업데이트 (haiku)
     │   ├── so-debugger.md             # 근본 원인 분석 + 재현 테스트 (sonnet)
     │   ├── so-explainer.md            # 코드 설명, 읽기 전용 (sonnet)
+    │   ├── so-auditor.md              # Drift 감지 (sonnet, 선택적)
     │   ├── so-preflight.md            # PR 전 안전 체크 (sonnet)
     │   └── so-security.md             # OWASP 보안 검토 (opus)
     └── skills/
@@ -152,6 +162,14 @@ your-project/
 
 ---
 
+## 핵심 기능
+
+- **PostToolUse 훅** — 편집 직후 자동으로 lint/typecheck 실행 (도구 설치 시)
+- **역피라미드 테스트** — 인수 → E2E → 단위 테스트 (역방향 접근법)
+- **UI 설계 스펙** — SPEC에 프론트엔드가 있으면 Designer가 UI 계약 작성 (선택적)
+- **병렬 검토 모드** — 복잡한 SPEC은 Reviewer + Architect 동시 실행으로 빠른 피드백
+- **연속 Drift 감지** — Auditor가 데드코드, 레거시 의존성, 놓친 아카이브 스캔 (선택적)
+
 ## 철학
 
 > 엔지니어의 역할은 코드 작성에서 하네스 설계로 전환됩니다: SPEC, 품질 게이트, 피드백 루프.
@@ -162,6 +180,7 @@ your-project/
 - **사람 체크포인트** — Reviewer 완료 후 파이프라인 일시 정지, 승인 후 진행
 - **Greenfield/Brownfield 인식** — 신규 기능은 전체 파이프라인, 기존 코드 변경은 직접 라우팅
 - **보안 게이트** — 모든 PR은 자동으로 Preflight + Security를 병렬 검토 후 생성
+- **피드백 루프** — PostToolUse 훅으로 즉시 피드백, Auditor로 지속 drift 감지
 
 ---
 
