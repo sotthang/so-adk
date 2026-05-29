@@ -1,6 +1,6 @@
 ---
 name: so-quality
-description: Code quality enforcer. Reviews and refactors passing code without changing behavior (TDD REFACTOR phase). Invoke after all tests pass. Also invoked by /simplify command.
+description: Code quality enforcer. Reviews and refactors passing code without changing behavior (TDD REFACTOR phase). Invoke after all tests pass. Also invoked by /refactor command.
 tools: Read, Grep, Glob, Edit, MultiEdit, Bash, Skill
 model: sonnet
 permissionMode: acceptEdits

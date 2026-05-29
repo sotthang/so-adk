@@ -75,7 +75,7 @@ SO-ADK detects intent from natural language and routes automatically:
 | ------- | ----------- |
 | `/dev "feature"` | Full pipeline: Plan → Review → Design → Test → Build → Quality → Docs |
 | `/plan "feature"` | Generate a SPEC document only |
-| `/simplify` | Review and refactor existing code |
+| `/refactor` | Review and refactor existing code (Quality agent) |
 | `/pr` | Create a pull request with a structured description |
 
 ---
@@ -86,7 +86,7 @@ SO-ADK has three layers:
 
 1. **`CLAUDE.md`** — imports the orchestrator. Detects intent, routes to agents, manages the SPEC lifecycle, handles checkpoints and session resume
 2. **`.claude/agents/`** — 14 specialized sub-agents (including Designer and Auditor), each a proper Claude Code agent with `model`, `maxTurns`, and `skills`
-3. **`.claude/skills/internal/`** — shared building blocks loaded by agents at startup (foundation principles, TDD workflow, SPEC format rules)
+3. **`.claude/skills/`** — shared building blocks preloaded into agents via the `skills:` field (foundation principles, TDD workflow, SPEC format rules). Each skill is a `<name>/SKILL.md` directory
 
 ### Greenfield vs Brownfield
 
@@ -131,9 +131,10 @@ your-project/
 │   └── run-checks.sh                  # Smoke test validation (optional)
 └── .claude/
     ├── so-orchestrator.md             # Orchestrator brain
-    ├── settings.json                  # PostToolUse hooks configuration
+    ├── settings.json                  # SessionStart + PostToolUse hooks configuration
     ├── hooks/
-    │   └── post-edit-check.sh         # Auto lint/typecheck on edit
+    │   ├── post-edit-check.sh         # Auto lint/typecheck on edit (exit 2 → feeds errors back)
+    │   └── session-start-resume.sh    # Injects in-progress SPECs at session start
     ├── agents/
     │   ├── so-planner.md              # Requirements → SPEC (opus)
     │   ├── so-reviewer.md             # SPEC review + checkpoint (opus)
@@ -149,22 +150,23 @@ your-project/
     │   ├── so-auditor.md              # Drift detection (sonnet, optional)
     │   ├── so-preflight.md            # Pre-PR safety check (sonnet)
     │   └── so-security.md             # OWASP security review (opus)
-    └── skills/
-        ├── internal/
-        │   ├── so-foundation.md       # Core principles for all agents
-        │   ├── so-tdd-workflow.md     # TDD RED/GREEN/REFACTOR rules
-        │   └── so-spec-format.md      # SPEC file format and status lifecycle
-        ├── dev.md                     # /dev — optional shortcut
-        ├── plan.md                    # /plan — optional shortcut
-        ├── simplify.md                # /simplify — optional shortcut
-        └── pr.md                      # /pr — optional shortcut
+    └── skills/                        # each skill is a directory with SKILL.md
+        ├── so-foundation/SKILL.md     # Core principles for all agents (preloaded)
+        ├── so-tdd-workflow/SKILL.md   # TDD RED/GREEN/REFACTOR rules (preloaded)
+        ├── so-spec-format/SKILL.md    # SPEC file format and status lifecycle (preloaded)
+        ├── so-context/SKILL.md        # Codebase context mapper (preloaded)
+        ├── dev/SKILL.md               # /dev — optional shortcut
+        ├── plan/SKILL.md              # /plan — optional shortcut
+        ├── refactor/SKILL.md          # /refactor — optional shortcut
+        └── pr/SKILL.md                # /pr — optional shortcut
 ```
 
 ---
 
 ## Key Features
 
-- **PostToolUse hooks** — Automatically runs lint/typecheck after Developer edits (if tools available)
+- **PostToolUse hooks** — Automatically runs lint/typecheck after Developer edits and feeds failures back to the agent (exit 2)
+- **SessionStart hook** — Deterministically surfaces in-progress SPECs on session start so resume never depends on the model remembering to scan
 - **Outside-In testing** — Acceptance → E2E → unit test pyramid (reverse testing approach)
 - **UI Design specs** — Designer agent creates UI contracts when SPEC includes frontend (optional)
 - **Parallel review mode** — Complex SPECs run Reviewer + Architect simultaneously for faster feedback

@@ -14,30 +14,59 @@ Write-Host ""
 
 # Create directories
 New-Item -ItemType Directory -Force -Path ".\.claude\agents" | Out-Null
-New-Item -ItemType Directory -Force -Path ".\.claude\skills\internal" | Out-Null
+New-Item -ItemType Directory -Force -Path ".\.claude\skills" | Out-Null
+New-Item -ItemType Directory -Force -Path ".\.claude\hooks" | Out-Null
 
-# Download user-facing skill files
+# Clean up legacy SO-ADK files from older installs (flat skill files +
+# renamed /simplify). Remove only SO-ADK-owned paths — never user skills.
+Write-Host "🧹 Cleaning up legacy SO-ADK files..."
+$LegacyFlatSkills = @("dev", "plan", "simplify", "pr", "so-foundation", "so-spec-format", "so-tdd-workflow", "so-context")
+foreach ($s in $LegacyFlatSkills) {
+    Remove-Item -Force -ErrorAction SilentlyContinue ".\.claude\skills\$s.md"
+    Remove-Item -Force -ErrorAction SilentlyContinue ".\.claude\skills\internal\$s.md"
+}
+if ((Test-Path ".\.claude\skills\internal") -and -not (Get-ChildItem ".\.claude\skills\internal" -Force)) {
+    Remove-Item -Force ".\.claude\skills\internal"
+}
+# Old /simplify skill dir (renamed to refactor) — only the SO-ADK one.
+if ((Test-Path ".\.claude\skills\simplify\SKILL.md") -and `
+    (Select-String -Path ".\.claude\skills\simplify\SKILL.md" -Pattern "so-quality" -Quiet)) {
+    Remove-Item -Recurse -Force ".\.claude\skills\simplify"
+}
+
+# Skills are directory-based: .claude/skills/<name>/SKILL.md
+# (flat .md files under .claude/skills/ are NOT recognized by Claude Code).
 Write-Host "⬇️  Downloading skills..."
-$Skills = @("dev", "plan", "simplify", "pr")
+$Skills = @("dev", "plan", "refactor", "pr")
 foreach ($skill in $Skills) {
-    Invoke-WebRequest -Uri "$REPO/.claude/skills/$skill.md" -OutFile ".\.claude\skills\$skill.md" -UseBasicParsing
+    New-Item -ItemType Directory -Force -Path ".\.claude\skills\$skill" | Out-Null
+    Invoke-WebRequest -Uri "$REPO/.claude/skills/$skill/SKILL.md" -OutFile ".\.claude\skills\$skill\SKILL.md" -UseBasicParsing
     Write-Host "   ✓ /$skill"
 }
 
-# Download internal skill files
+# Internal knowledge skills (preloaded into agents via the `skills:` field)
 Write-Host "⬇️  Downloading internal skills..."
 $InternalSkills = @("so-foundation", "so-spec-format", "so-tdd-workflow", "so-context")
 foreach ($skill in $InternalSkills) {
-    Invoke-WebRequest -Uri "$REPO/.claude/skills/internal/$skill.md" -OutFile ".\.claude\skills\internal\$skill.md" -UseBasicParsing
+    New-Item -ItemType Directory -Force -Path ".\.claude\skills\$skill" | Out-Null
+    Invoke-WebRequest -Uri "$REPO/.claude/skills/$skill/SKILL.md" -OutFile ".\.claude\skills\$skill\SKILL.md" -UseBasicParsing
     Write-Host "   ✓ $skill"
 }
 
 # Download agent files
 Write-Host "⬇️  Downloading agents..."
-$Agents = @("so-planner", "so-reviewer", "so-architect", "so-tester", "so-developer", "so-quality", "so-docs", "so-debugger", "so-explainer", "so-preflight", "so-security", "so-performance")
+$Agents = @("so-planner", "so-reviewer", "so-architect", "so-designer", "so-scaffold", "so-tester", "so-developer", "so-quality", "so-docs", "so-debugger", "so-explainer", "so-auditor", "so-preflight", "so-security", "so-performance")
 foreach ($agent in $Agents) {
     Invoke-WebRequest -Uri "$REPO/.claude/agents/$agent.md" -OutFile ".\.claude\agents\$agent.md" -UseBasicParsing
     Write-Host "   ✓ $agent"
+}
+
+# Download hooks
+Write-Host "⬇️  Downloading hooks..."
+$Hooks = @("post-edit-check.sh", "session-start-resume.sh")
+foreach ($hook in $Hooks) {
+    Invoke-WebRequest -Uri "$REPO/.claude/hooks/$hook" -OutFile ".\.claude\hooks\$hook" -UseBasicParsing
+    Write-Host "   ✓ $hook"
 }
 
 # Always update the orchestrator file (SO-ADK owned, safe to overwrite)
@@ -61,10 +90,43 @@ if (Test-Path ".\CLAUDE.md") {
     Write-Host "   ✓ CLAUDE.md created"
 }
 
+# Create / merge settings.json (SessionStart + PostToolUse hooks)
+$SettingsPath = ".\.claude\settings.json"
+$SettingsTemplate = @'
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": ".claude/hooks/session-start-resume.sh" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": ".claude/hooks/post-edit-check.sh" }
+        ]
+      }
+    ]
+  }
+}
+'@
+if (-not (Test-Path $SettingsPath)) {
+    Set-Content -Path $SettingsPath -Value $SettingsTemplate
+    Write-Host "   ✓ settings.json created from template"
+} else {
+    Write-Host "   ⚠ settings.json already exists — please ensure it registers the SessionStart and PostToolUse hooks above" -ForegroundColor Yellow
+}
+
 # Create specs directory
-New-Item -ItemType Directory -Force -Path ".\specs" | Out-Null
+New-Item -ItemType Directory -Force -Path ".\specs\archive" | Out-Null
 if (-not (Test-Path ".\specs\.gitkeep")) {
     New-Item -ItemType File -Path ".\specs\.gitkeep" | Out-Null
+}
+if (-not (Test-Path ".\specs\archive\.gitkeep")) {
+    New-Item -ItemType File -Path ".\specs\archive\.gitkeep" | Out-Null
 }
 
 Write-Host ""

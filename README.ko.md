@@ -75,7 +75,7 @@ SO-ADK가 자연어에서 의도를 감지하고 자동으로 라우팅합니다
 | ------ | ---- |
 | `/dev "기능 설명"` | 전체 파이프라인: Plan → Review → Design → Test → Build → Quality → Docs |
 | `/plan "기능 설명"` | SPEC 문서만 생성 |
-| `/simplify` | 기존 코드 리뷰 및 리팩토링 |
+| `/refactor` | 기존 코드 리뷰 및 리팩토링 (Quality 에이전트) |
 | `/pr` | 구조화된 설명과 함께 PR 생성 |
 
 ---
@@ -86,7 +86,7 @@ SO-ADK는 세 가지 레이어로 이루어져 있습니다:
 
 1. **`CLAUDE.md`** — 오케스트레이터를 import합니다. 자연어 의도 감지 → 에이전트 자율 호출 → SPEC 상태 관리 → 체크포인트 및 세션 재개 처리
 2. **`.claude/agents/`** — 14개 전문 에이전트 (Designer, Auditor 포함). `model`, `maxTurns`, `skills`가 설정된 정식 Claude Code 에이전트
-3. **`.claude/skills/internal/`** — 에이전트 시작 시 로드되는 공유 빌딩 블록 (공통 원칙, TDD 워크플로우, SPEC 형식 규칙)
+3. **`.claude/skills/`** — 에이전트 시작 시 `skills:` 필드로 프리로드되는 공유 빌딩 블록 (공통 원칙, TDD 워크플로우, SPEC 형식 규칙). 각 스킬은 `<name>/SKILL.md` 디렉터리 형식
 
 ### Greenfield vs Brownfield 자동 감지
 
@@ -131,9 +131,10 @@ your-project/
 │   └── run-checks.sh                  # Smoke 테스트 검증 (선택적)
 └── .claude/
     ├── so-orchestrator.md             # 오케스트레이터 두뇌
-    ├── settings.json                  # PostToolUse 훅 설정
+    ├── settings.json                  # SessionStart + PostToolUse 훅 설정
     ├── hooks/
-    │   └── post-edit-check.sh         # 편집 후 자동 린트/타입체크
+    │   ├── post-edit-check.sh         # 편집 후 자동 린트/타입체크 (exit 2 → 에러를 에이전트에 피드백)
+    │   └── session-start-resume.sh    # 세션 시작 시 진행 중 SPEC 주입
     ├── agents/
     │   ├── so-planner.md              # 요구사항 → SPEC (opus)
     │   ├── so-reviewer.md             # SPEC 검토 + 체크포인트 (opus)
@@ -149,22 +150,23 @@ your-project/
     │   ├── so-auditor.md              # Drift 감지 (sonnet, 선택적)
     │   ├── so-preflight.md            # PR 전 안전 체크 (sonnet)
     │   └── so-security.md             # OWASP 보안 검토 (opus)
-    └── skills/
-        ├── internal/
-        │   ├── so-foundation.md       # 모든 에이전트 공통 원칙
-        │   ├── so-tdd-workflow.md     # TDD RED/GREEN/REFACTOR 규칙
-        │   └── so-spec-format.md      # SPEC 파일 형식 및 상태 라이프사이클
-        ├── dev.md                     # /dev — 선택적 단축키
-        ├── plan.md                    # /plan — 선택적 단축키
-        ├── simplify.md                # /simplify — 선택적 단축키
-        └── pr.md                      # /pr — 선택적 단축키
+    └── skills/                        # 각 스킬은 SKILL.md를 가진 디렉터리
+        ├── so-foundation/SKILL.md     # 모든 에이전트 공통 원칙 (프리로드)
+        ├── so-tdd-workflow/SKILL.md   # TDD RED/GREEN/REFACTOR 규칙 (프리로드)
+        ├── so-spec-format/SKILL.md    # SPEC 파일 형식 및 상태 라이프사이클 (프리로드)
+        ├── so-context/SKILL.md        # 코드베이스 컨텍스트 매퍼 (프리로드)
+        ├── dev/SKILL.md               # /dev — 선택적 단축키
+        ├── plan/SKILL.md              # /plan — 선택적 단축키
+        ├── refactor/SKILL.md          # /refactor — 선택적 단축키
+        └── pr/SKILL.md                # /pr — 선택적 단축키
 ```
 
 ---
 
 ## 핵심 기능
 
-- **PostToolUse 훅** — 편집 직후 자동으로 lint/typecheck 실행 (도구 설치 시)
+- **PostToolUse 훅** — 편집 직후 자동으로 lint/typecheck 실행하고 실패를 에이전트에 피드백 (exit 2)
+- **SessionStart 훅** — 세션 시작 시 진행 중 SPEC을 결정론적으로 주입 → 모델 기억에 의존하지 않는 재개
 - **역피라미드 테스트** — 인수 → E2E → 단위 테스트 (역방향 접근법)
 - **UI 설계 스펙** — SPEC에 프론트엔드가 있으면 Designer가 UI 계약 작성 (선택적)
 - **병렬 검토 모드** — 복잡한 SPEC은 Reviewer + Architect 동시 실행으로 빠른 피드백

@@ -11,6 +11,13 @@ REPO="https://raw.githubusercontent.com/sotthang/so-adk/main"
 # ── settings.json 병합 함수 ────────────────────────────────────────────────
 SETTINGS_TEMPLATE='{
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": ".claude/hooks/session-start-resume.sh" }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit",
@@ -35,11 +42,14 @@ merge_settings_json() {
 
   # 기존 파일이 있으면 jq로 병합
   if command -v jq &>/dev/null; then
-    local hook_entry='{"matcher":"Edit|Write|MultiEdit","hooks":[{"type":"command","command":".claude/hooks/post-edit-check.sh"}]}'
+    local post_hook='{"matcher":"Edit|Write|MultiEdit","hooks":[{"type":"command","command":".claude/hooks/post-edit-check.sh"}]}'
+    local start_hook='{"hooks":[{"type":"command","command":".claude/hooks/session-start-resume.sh"}]}'
     local merged
-    merged="$(jq --argjson hook "$hook_entry" \
-      '.hooks.PostToolUse = ((.hooks.PostToolUse // []) + [$hook] | unique_by(.matcher))' \
-      "$settings_path")"
+    merged="$(jq --argjson post "$post_hook" --argjson start "$start_hook" '
+      .hooks.PostToolUse = ((.hooks.PostToolUse // []) + [$post] | unique_by(.matcher))
+      | .hooks.SessionStart = ((.hooks.SessionStart // []) + [$start]
+          | unique_by(.hooks[0].command))
+    ' "$settings_path")"
     echo "$merged" > "$settings_path"
     echo "   ✓ settings.json merged (existing keys preserved)"
   else
@@ -70,21 +80,43 @@ echo ""
 
 # Create directories
 mkdir -p "./.claude/agents"
-mkdir -p "./.claude/skills/internal"
+mkdir -p "./.claude/skills"
 
-# Download user-facing skill files
+# ── Clean up legacy SO-ADK files from older installs ─────────────────────────
+# Older versions shipped flat skill files and a /simplify command. The skill
+# format is now directory-based (<name>/SKILL.md) and /simplify was renamed to
+# /refactor, so the old files are orphans. Remove only SO-ADK-owned paths —
+# never touch user-authored skills.
+echo "🧹 Cleaning up legacy SO-ADK files..."
+LEGACY_FLAT_SKILLS=(dev plan simplify pr so-foundation so-spec-format so-tdd-workflow so-context)
+for s in "${LEGACY_FLAT_SKILLS[@]}"; do
+  rm -f "./.claude/skills/${s}.md"
+  rm -f "./.claude/skills/internal/${s}.md"
+done
+rmdir "./.claude/skills/internal" 2>/dev/null || true
+# Old /simplify skill dir (renamed to refactor) — remove the SO-ADK one only.
+# Identify it by the SO-ADK marker so we don't delete an unrelated simplify skill.
+if [ -f "./.claude/skills/simplify/SKILL.md" ] && \
+   grep -q "so-quality" "./.claude/skills/simplify/SKILL.md" 2>/dev/null; then
+  rm -rf "./.claude/skills/simplify"
+fi
+
+# Skills are directory-based: .claude/skills/<name>/SKILL.md
+# (flat .md files under .claude/skills/ are NOT recognized by Claude Code).
 echo "⬇️  Downloading skills..."
-SKILLS=(dev plan simplify pr)
+SKILLS=(dev plan refactor pr)
 for skill in "${SKILLS[@]}"; do
-  curl -fsSL "$REPO/.claude/skills/${skill}.md" -o "./.claude/skills/${skill}.md"
+  mkdir -p "./.claude/skills/${skill}"
+  curl -fsSL "$REPO/.claude/skills/${skill}/SKILL.md" -o "./.claude/skills/${skill}/SKILL.md"
   echo "   ✓ /${skill}"
 done
 
-# Download internal skill files
+# Internal knowledge skills (preloaded into agents via the `skills:` field)
 echo "⬇️  Downloading internal skills..."
 INTERNAL_SKILLS=(so-foundation so-spec-format so-tdd-workflow so-context)
 for skill in "${INTERNAL_SKILLS[@]}"; do
-  curl -fsSL "$REPO/.claude/skills/internal/${skill}.md" -o "./.claude/skills/internal/${skill}.md"
+  mkdir -p "./.claude/skills/${skill}"
+  curl -fsSL "$REPO/.claude/skills/${skill}/SKILL.md" -o "./.claude/skills/${skill}/SKILL.md"
   echo "   ✓ ${skill}"
 done
 
@@ -119,9 +151,12 @@ fi
 # Download hooks
 echo "⬇️  Downloading hooks..."
 mkdir -p "./.claude/hooks"
-curl -fsSL "$REPO/.claude/hooks/post-edit-check.sh" -o "./.claude/hooks/post-edit-check.sh"
-chmod +x "./.claude/hooks/post-edit-check.sh"
-echo "   ✓ post-edit-check.sh"
+HOOKS=(post-edit-check.sh session-start-resume.sh)
+for hook in "${HOOKS[@]}"; do
+  curl -fsSL "$REPO/.claude/hooks/${hook}" -o "./.claude/hooks/${hook}"
+  chmod +x "./.claude/hooks/${hook}"
+  echo "   ✓ ${hook}"
+done
 
 # Merge settings.json (PostToolUse hook)
 merge_settings_json "."
