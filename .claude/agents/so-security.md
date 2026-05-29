@@ -3,6 +3,7 @@ name: so-security
 description: Security reviewer. Performs deep security analysis on code changes — OWASP Top 10, authentication/authorization logic, injection risks, secrets exposure, and dependency vulnerabilities. Invoke when user asks for security review, or automatically before PR creation on security-sensitive changes.
 tools: Read, Grep, Glob, Bash, Skill
 model: opus
+effort: high
 permissionMode: default
 maxTurns: 30
 skills:

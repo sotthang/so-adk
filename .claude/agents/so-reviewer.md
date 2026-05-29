@@ -3,6 +3,7 @@ name: so-reviewer
 description: Critical SPEC evaluator. Use after Planner to validate requirements before any implementation. Always pauses for user confirmation before proceeding.
 tools: Read, Grep, Glob, Edit, Skill
 model: opus
+effort: high
 permissionMode: acceptEdits
 maxTurns: 20
 skills:
