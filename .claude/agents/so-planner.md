@@ -2,7 +2,7 @@
 name: so-planner
 description: Requirements analyst and SPEC writer. Use when starting any new feature or task. Invoke when user requests a new feature, says "만들어줘", "개발해줘", "plan", "spec", or starts a new task.
 tools: Read, Grep, Glob, Write, WebSearch, Skill
-model: opus
+model: fable
 effort: high
 permissionMode: acceptEdits
 maxTurns: 30

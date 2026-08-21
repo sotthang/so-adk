@@ -85,7 +85,7 @@ SO-ADK detects intent from natural language and routes automatically:
 SO-ADK has three layers:
 
 1. **`CLAUDE.md`** — imports the orchestrator. Detects intent, routes to agents, manages the SPEC lifecycle, handles checkpoints and session resume
-2. **`.claude/agents/`** — 14 specialized sub-agents (including Designer and Auditor), each a proper Claude Code agent with `model`, `maxTurns`, and `skills`
+2. **`.claude/agents/`** — 15 specialized sub-agents (including Designer, Performance, and Auditor), each a proper Claude Code agent with `model`, `maxTurns`, and `skills`
 3. **`.claude/skills/`** — shared building blocks preloaded into agents via the `skills:` field (foundation principles, TDD workflow, SPEC format rules). Each skill is a `<name>/SKILL.md` directory
 
 ### Greenfield vs Brownfield
@@ -103,10 +103,10 @@ If a pipeline is interrupted mid-way, SO-ADK detects the in-progress SPEC on the
 
 | Agent | Model | Reason |
 | ----- | ----- | ------ |
-| Planner | opus | SPEC quality determines everything downstream |
+| Planner | fable | SPEC quality determines everything downstream |
 | Reviewer | opus | Deep reasoning needed to catch risks |
-| Architect | opus | Design decisions affect the entire implementation |
-| Designer | sonnet | UI/frontend contract specifications (optional) |
+| Architect | fable | Design decisions affect the entire implementation |
+| Designer | opus | UI/frontend contract specifications (optional) |
 | Scaffold | sonnet | Stub file generation, repetitive task |
 | Tester | sonnet | Pattern-based test writing, acceptance-to-unit pyramid |
 | Developer | sonnet | Iterative implementation loop, auto-lint on edit |
@@ -116,6 +116,7 @@ If a pipeline is interrupted mid-way, SO-ADK detects the in-progress SPEC on the
 | Explainer | sonnet | Code reading and explanation |
 | Auditor | sonnet | Dead code, stale deps, drift detection (stateless) |
 | Preflight | sonnet | Test/lint runner and diff review |
+| Performance | sonnet | Bottleneck/N+1 analysis, read-only report |
 | Security | opus | Deep security analysis requires strong reasoning |
 
 ---
@@ -136,10 +137,10 @@ your-project/
     │   ├── post-edit-check.sh         # Auto lint/typecheck on edit (exit 2 → feeds errors back)
     │   └── session-start-resume.sh    # Injects in-progress SPECs at session start
     ├── agents/
-    │   ├── so-planner.md              # Requirements → SPEC (opus)
+    │   ├── so-planner.md              # Requirements → SPEC (fable)
     │   ├── so-reviewer.md             # SPEC review + checkpoint (opus)
-    │   ├── so-architect.md            # File structure + interfaces (opus)
-    │   ├── so-designer.md             # UI design contract (sonnet, optional)
+    │   ├── so-architect.md            # File structure + interfaces (fable)
+    │   ├── so-designer.md             # UI design contract (opus, optional)
     │   ├── so-scaffold.md             # Generate stub file skeleton (sonnet)
     │   ├── so-tester.md               # Write failing tests — TDD RED (sonnet)
     │   ├── so-developer.md            # Implement to pass tests — TDD GREEN (sonnet)
@@ -149,6 +150,7 @@ your-project/
     │   ├── so-explainer.md            # Code explanation, read-only (sonnet)
     │   ├── so-auditor.md              # Drift detection (sonnet, optional)
     │   ├── so-preflight.md            # Pre-PR safety check (sonnet)
+    │   ├── so-performance.md          # Bottleneck analysis, read-only (sonnet)
     │   └── so-security.md             # OWASP security review (opus)
     └── skills/                        # each skill is a directory with SKILL.md
         ├── so-foundation/SKILL.md     # Core principles for all agents (preloaded)

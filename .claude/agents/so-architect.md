@@ -2,7 +2,7 @@
 name: so-architect
 description: System designer. Use after SPEC is approved to design file structure, interfaces, and data models before any code is written.
 tools: Read, Grep, Glob, Write, Skill
-model: opus
+model: fable
 effort: high
 permissionMode: default
 maxTurns: 30
