@@ -1,0 +1,11 @@
+{
+  "name": "so-adk",
+  "description": "SO-ADK: spec-first agentic development kit for Claude Code (pipeline agents, skills, hooks, main-thread orchestrator).",
+  "owner": { "name": "sotthang", "email": "sotthang@gmail.com" },
+  "plugins": [
+    { "name": "so-adk-core", "source": "./plugins/so-adk-core", "version": "1.0.0",
+      "description": "SO-ADK pipeline agents, skills, and hooks. Project/Local scope recommended (User scope fires hooks globally)." },
+    { "name": "so-adk-orchestrator", "source": "./plugins/so-adk-orchestrator", "version": "1.0.0",
+      "description": "Main-thread orchestrator. Requires so-adk-core. Project/Local scope only." }
+  ]
+}

@@ -1,6 +1,6 @@
-# Claude Code
+# Claude Code — settings.json은 팀 공유 설정(마켓플레이스 등록/플러그인 활성 기록)으로 커밋 대상.
+# 개인 설정(model, env, permissions 등)은 반드시 settings.local.json에 둘 것 (계속 ignore됨).
 .claude/settings.local.json
-.claude/settings.json
 .claude/memory/
 
 # macOS

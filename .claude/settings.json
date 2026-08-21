@@ -1,0 +1,9 @@
+{
+  "extraKnownMarketplaces": {
+    "so-adk": { "source": { "source": "github", "repo": "sotthang/so-adk" } }
+  },
+  "enabledPlugins": {
+    "so-adk-core@so-adk": true,
+    "so-adk-orchestrator@so-adk": true
+  }
+}
