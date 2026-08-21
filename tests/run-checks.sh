@@ -25,6 +25,25 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# --- 경로 리졸버 (SPEC-002 R7): SPEC-001 plugins/ 레이아웃 공존 ---
+resolve_agents_dir() {
+  if [ -d "$REPO_ROOT/plugins/so-adk-core/agents" ]; then
+    echo "$REPO_ROOT/plugins/so-adk-core/agents"
+  else
+    echo "$REPO_ROOT/.claude/agents"
+  fi
+}
+resolve_orchestrator_file() {
+  if [ -f "$REPO_ROOT/plugins/so-adk-orchestrator/agents/so-orchestrator.md" ]; then
+    echo "$REPO_ROOT/plugins/so-adk-orchestrator/agents/so-orchestrator.md"
+  else
+    echo "$REPO_ROOT/.claude/so-orchestrator.md"
+  fi
+}
+AGENTS_DIR="$(resolve_agents_dir)"
+ORCH_FILE="$(resolve_orchestrator_file)"
+
+
 PASS=0
 FAIL=0
 SKIP=0
@@ -54,12 +73,12 @@ mk_tmp() {
 # 정적 검증 (8개)
 # ---------------------------------------------------------------------------
 
-# check_frontmatter — .claude/agents/*.md 모든 파일이 ---로 시작하고
+# check_frontmatter — agents 디렉터리 모든 파일이 ---로 시작하고
 # name/description/tools/model 4개 필드 포함
 check_frontmatter() {
   local name="check_frontmatter"
   local failed=0
-  for f in "$REPO_ROOT"/.claude/agents/*.md; do
+  for f in "$AGENTS_DIR"/*.md; do
     [ -f "$f" ] || continue
     local fname
     fname="$(basename "$f")"
@@ -102,12 +121,12 @@ check_new_agents_in_install() {
   fi
 }
 
-# check_new_agents_in_orchestrator — .claude/so-orchestrator.md에 so-designer, so-auditor 최소 1회 이상
+# check_new_agents_in_orchestrator — orchestrator 파일에 so-designer, so-auditor 최소 1회 이상
 check_new_agents_in_orchestrator() {
   local name="check_new_agents_in_orchestrator"
   local failed=0
   for agent in so-designer so-auditor; do
-    if ! grep -q "$agent" "$REPO_ROOT/.claude/so-orchestrator.md"; then
+    if ! grep -q "$agent" "$ORCH_FILE"; then
       echo "[FAIL] $name: '$agent' not found in so-orchestrator.md" >&2
       failed=1
     fi
@@ -166,7 +185,7 @@ check_hook_exists_executable() {
 # check_tester_outside_in_mode — so-tester.md에 "Outside-In" 또는 "Acceptance → Unit" 또는 "역피라미드" 중 하나
 check_tester_outside_in_mode() {
   local name="check_tester_outside_in_mode"
-  local tester="$REPO_ROOT/.claude/agents/so-tester.md"
+  local tester="$AGENTS_DIR/so-tester.md"
   if [ ! -f "$tester" ]; then
     fail "$name"
     echo "[FAIL] $name: so-tester.md not found" >&2
@@ -183,7 +202,7 @@ check_tester_outside_in_mode() {
 # check_architect_preview_mode — so-architect.md에 "Preview mode" 또는 동등 표현
 check_architect_preview_mode() {
   local name="check_architect_preview_mode"
-  local architect="$REPO_ROOT/.claude/agents/so-architect.md"
+  local architect="$AGENTS_DIR/so-architect.md"
   if [ ! -f "$architect" ]; then
     fail "$name"
     echo "[FAIL] $name: so-architect.md not found" >&2
@@ -200,7 +219,7 @@ check_architect_preview_mode() {
 # check_orchestrator_parallel_review — so-orchestrator.md에 "Step 3.5" 또는 "Complexity gate" 또는 "Parallel review"
 check_orchestrator_parallel_review() {
   local name="check_orchestrator_parallel_review"
-  local orch="$REPO_ROOT/.claude/so-orchestrator.md"
+  local orch="$ORCH_FILE"
   if [ ! -f "$orch" ]; then
     fail "$name"
     echo "[FAIL] $name: so-orchestrator.md not found" >&2
