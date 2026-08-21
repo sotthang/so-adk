@@ -112,6 +112,11 @@ locally instead.
 EOF
 }
 
+print_nothing_to_migrate() {
+  echo "No legacy SO-ADK assets detected — nothing to migrate."
+  print_install_guidance
+}
+
 # ── --dry-run 계획 출력 ──────────────────────────────────────────────────
 print_dry_run_plan() {
   local ts
@@ -213,8 +218,7 @@ remove_hook_entries() {
 # ── 백업 이동 + CLAUDE.md 정리 ──────────────────────────────────────────
 do_migrate() {
   if ! detect_legacy; then
-    echo "No legacy SO-ADK assets detected — nothing to migrate."
-    print_install_guidance
+    print_nothing_to_migrate
     exit 0
   fi
 
@@ -278,11 +282,8 @@ case "${1:-}" in
     exit 0
     ;;
   --dry-run)
-    detect_legacy || true
-    if [ "${#FOUND_AGENTS[@]}" -eq 0 ] && [ "${#FOUND_INTERNAL_SKILLS[@]}" -eq 0 ] && \
-       [ "${#FOUND_GUARDED_SKILLS[@]}" -eq 0 ] && [ "${#FOUND_HOOKS[@]}" -eq 0 ] && [ "$FOUND_ORCH" -eq 0 ]; then
-      echo "No legacy SO-ADK assets detected — nothing to migrate."
-      print_install_guidance
+    if ! detect_legacy; then
+      print_nothing_to_migrate
       exit 0
     fi
     print_detected

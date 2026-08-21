@@ -5,13 +5,13 @@
 # | AC ID                              | Test function                              | Status |
 # | ---------------------------------- | ------------------------------------------ | ------ |
 # | AC-R1 (훅 존재/실행권한)           | check_hook_exists_executable               | GREEN  |
-# | AC-R1 (settings.json 유효 JSON)    | check_settings_json_valid                  | RED (기지)|
+# | AC-R1 (settings.json 유효 JSON)    | check_settings_json_valid (SPEC-001 재정의)| GREEN  |
 # | AC-R1 (빈 디렉토리 훅 스킵)        | check_hook_empty_dir                       | GREEN  |
 # | AC-R1 (npm lint OK)                | check_hook_npm_lint_ok                     | GREEN  |
 # | AC-R1 (npm lint fail → non-zero)   | check_hook_npm_lint_fail                   | GREEN  |
 # | AC-R1 (python/ruff 없으면 스킵)    | check_hook_python_no_tools                 | GREEN  |
 # | AC-R2 (Outside-In 섹션)            | check_tester_outside_in_mode               | GREEN  |
-# | AC-R3 (so-designer install.sh)     | check_new_agents_in_install                | GREEN  |
+# | AC-R3 (so-designer install.sh)     | (삭제 — install.sh 나열 소멸, AC-R7d)      | N/A    |
 # | AC-R3 (so-designer orchestrator)   | check_new_agents_in_orchestrator           | GREEN  |
 # | AC-R4 (Step 3.5 / Complexity gate) | check_orchestrator_parallel_review         | GREEN  |
 # | AC-R4 (Preview mode)               | check_architect_preview_mode               | GREEN  |
@@ -32,30 +32,30 @@
 # | AC-R7a (리졸버 전후 동일 GREEN)        | 커밋 1 전후 전체 실행 대조          | MANUAL |
 # | AC-R7d (plugins 레이아웃 GREEN)        | SPEC-001 병합 후 스모크             | DEFER  |
 #
-# --- SPEC-001 플러그인 전환 (RED — plugins/ 레이아웃 미이관, so-tester 작성) ---
+# --- SPEC-001 플러그인 전환 (C1~C4 완료 — 전 검사 GREEN) ---
 # 권위 있는 매핑표: specs/SPEC-001-plugin-migration.arch.md §6
 # | AC ID                                  | Test function                          | Status |
 # | --------------------------------------- | -------------------------------------- | ------ |
-# | AC-R1b (agents 16 / skills 8)           | check_asset_counts                     | RED    |
-# | AC-R2a (core plugin validate)           | check_plugin_validate_core             | RED    |
-# | AC-R2b (hooks.json 스키마)              | check_hooks_json_valid                 | RED    |
+# | AC-R1b (agents 16 / skills 8)           | check_asset_counts                     | GREEN  |
+# | AC-R2a (core plugin validate)           | check_plugin_validate_core             | GREEN  |
+# | AC-R2b (hooks.json 스키마)              | check_hooks_json_valid                 | GREEN  |
 # | AC-R2d (skills: 플레인 이름)            | check_frontmatter 계열 — 무수정(리졸버)| N/A    |
-# | AC-R3a (orchestrator plugin validate)   | check_plugin_validate_orchestrator     | RED    |
-# | AC-R3b (settings.json "agent" 키)       | check_orchestrator_settings_agent      | RED    |
-# | AC-R3d (frontmatter name/desc, model·tools 부재) | check_orchestrator_frontmatter | RED    |
-# | AC-R4a (marketplace.json)               | check_marketplace_json_valid           | RED    |
-# | AC-R4b/c/d (settings.json 재정의 3종)   | check_settings_json_valid (재정의)     | RED (C4 이후 통과 예정 — 지금 통과시키지 않음) |
-# | AC-R5a (구 스킬 호출명 0건, plugins/)   | check_skill_namespace                  | RED    |
-# | AC-R6a/R6f (백업 이동 + 사용자 수정본 보존) | check_migrate_backup_preserves     | RED    |
-# | AC-R6b (curl/append 부재 + 고정목록 + 대칭 마커 가드) | check_wrapper_static         | RED    |
-# | AC-R6c (빈 디렉토리 무변경)             | check_migrate_empty_dir                | RED    |
-# | AC-R6d (무플래그 무변경)                | check_migrate_no_flag_noop             | RED    |
-# | AC-R6e (--dry-run 계획만 출력)          | check_migrate_dry_run                  | RED    |
-# | AC-R6g (jq 부재 → 무이동 + exit 비0)    | check_migrate_no_jq_guard              | RED    |
-# | AC-R6h (invalid JSON → 무이동 + exit 비0) | check_migrate_bad_settings_json      | RED    |
-# | (정상 경로 훅 엔트리 정밀 제거)         | check_migrate_normal_path_hook_removal | RED    |
-# | AC-R7b (순방향 파일-참조 일치성)        | check_orchestrator_agent_refs_exist    | RED    |
-# | AC-R7c (역방향 고아 에이전트 부재)      | check_no_orphan_agents                 | RED    |
+# | AC-R3a (orchestrator plugin validate)   | check_plugin_validate_orchestrator     | GREEN  |
+# | AC-R3b (settings.json "agent" 키)       | check_orchestrator_settings_agent      | GREEN  |
+# | AC-R3d (frontmatter name/desc, model·tools 부재) | check_orchestrator_frontmatter | GREEN  |
+# | AC-R4a (marketplace.json)               | check_marketplace_json_valid           | GREEN  |
+# | AC-R4b/c/d (settings.json 재정의 3종)   | check_settings_json_valid (재정의)     | GREEN  |
+# | AC-R5a (구 스킬 호출명 0건, plugins/)   | check_skill_namespace                  | GREEN  |
+# | AC-R6a/R6f (백업 이동 + 사용자 수정본 보존) | check_migrate_backup_preserves     | GREEN  |
+# | AC-R6b (curl/append 부재 + 고정목록 + 대칭 마커 가드) | check_wrapper_static         | GREEN  |
+# | AC-R6c (빈 디렉토리 무변경)             | check_migrate_empty_dir                | GREEN  |
+# | AC-R6d (무플래그 무변경)                | check_migrate_no_flag_noop             | GREEN  |
+# | AC-R6e (--dry-run 계획만 출력)          | check_migrate_dry_run                  | GREEN  |
+# | AC-R6g (jq 부재 → 무이동 + exit 비0)    | check_migrate_no_jq_guard              | GREEN  |
+# | AC-R6h (invalid JSON → 무이동 + exit 비0) | check_migrate_bad_settings_json      | GREEN  |
+# | (정상 경로 훅 엔트리 정밀 제거)         | check_migrate_normal_path_hook_removal | GREEN  |
+# | AC-R7b (순방향 파일-참조 일치성)        | check_orchestrator_agent_refs_exist    | GREEN  |
+# | AC-R7c (역방향 고아 에이전트 부재)      | check_no_orphan_agents                 | GREEN  |
 # | AC-R7d (구 검사명 소멸)                 | 본 파일에서 check_new_agents_in_install / check_install_dry_run_preserves / check_install_dry_run_empty / check_install_calls_merge_in_normal_path 제거 완료 | DONE |
 # | AC-R2c/R3e/R11a/R11b/R11c/R12a/R12b/R8/R9/R10 | 수동 스모크 / trailer / README 검사 (run-checks.sh 비포함, C-9·R11-e 참조) | MANUAL |
 
@@ -782,64 +782,49 @@ check_asset_counts() {
   if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
 }
 
-# check_plugin_validate_core — claude plugin validate ./plugins/so-adk-core --strict (AC-R2a)
-check_plugin_validate_core() {
-  local name="check_plugin_validate_core"
+# _plugin_validate — plugin validate 3종의 공통 골격.
+# 인자: <검사명> <validate 대상 경로> <존재를 요구하는 경로> <실패 메시지용 라벨>
+_plugin_validate() {
+  local name="$1" target="$2" must_exist="$3" label="$4"
   if ! command -v claude &>/dev/null; then
     skip "$name" "claude CLI not in PATH"
     return
   fi
-  if [ ! -d "$REPO_ROOT/plugins/so-adk-core" ]; then
+  if [ ! -e "$must_exist" ]; then
     fail "$name"
-    echo "[FAIL] $name: plugins/so-adk-core not found (pre-migration)" >&2
+    echo "[FAIL] $name: ${must_exist#"$REPO_ROOT"/} not found (pre-migration)" >&2
     return
   fi
-  if claude plugin validate "$REPO_ROOT/plugins/so-adk-core" --strict &>/dev/null; then
+  if claude plugin validate "$target" --strict &>/dev/null; then
     pass "$name"
   else
     fail "$name"
-    echo "[FAIL] $name: claude plugin validate --strict failed for so-adk-core" >&2
+    echo "[FAIL] $name: claude plugin validate --strict failed for $label" >&2
   fi
+}
+
+# check_plugin_validate_core — claude plugin validate ./plugins/so-adk-core --strict (AC-R2a)
+check_plugin_validate_core() {
+  _plugin_validate "check_plugin_validate_core" \
+    "$REPO_ROOT/plugins/so-adk-core" \
+    "$REPO_ROOT/plugins/so-adk-core" \
+    "so-adk-core"
 }
 
 # check_plugin_validate_orchestrator — claude plugin validate ./plugins/so-adk-orchestrator --strict (AC-R3a)
 check_plugin_validate_orchestrator() {
-  local name="check_plugin_validate_orchestrator"
-  if ! command -v claude &>/dev/null; then
-    skip "$name" "claude CLI not in PATH"
-    return
-  fi
-  if [ ! -d "$REPO_ROOT/plugins/so-adk-orchestrator" ]; then
-    fail "$name"
-    echo "[FAIL] $name: plugins/so-adk-orchestrator not found (pre-migration)" >&2
-    return
-  fi
-  if claude plugin validate "$REPO_ROOT/plugins/so-adk-orchestrator" --strict &>/dev/null; then
-    pass "$name"
-  else
-    fail "$name"
-    echo "[FAIL] $name: claude plugin validate --strict failed for so-adk-orchestrator" >&2
-  fi
+  _plugin_validate "check_plugin_validate_orchestrator" \
+    "$REPO_ROOT/plugins/so-adk-orchestrator" \
+    "$REPO_ROOT/plugins/so-adk-orchestrator" \
+    "so-adk-orchestrator"
 }
 
 # check_plugin_validate_marketplace — claude plugin validate <repo root> --strict (마켓플레이스 루트, R7)
 check_plugin_validate_marketplace() {
-  local name="check_plugin_validate_marketplace"
-  if ! command -v claude &>/dev/null; then
-    skip "$name" "claude CLI not in PATH"
-    return
-  fi
-  if [ ! -f "$REPO_ROOT/.claude-plugin/marketplace.json" ]; then
-    fail "$name"
-    echo "[FAIL] $name: .claude-plugin/marketplace.json not found (pre-migration)" >&2
-    return
-  fi
-  if claude plugin validate "$REPO_ROOT" --strict &>/dev/null; then
-    pass "$name"
-  else
-    fail "$name"
-    echo "[FAIL] $name: claude plugin validate --strict failed for marketplace root" >&2
-  fi
+  _plugin_validate "check_plugin_validate_marketplace" \
+    "$REPO_ROOT" \
+    "$REPO_ROOT/.claude-plugin/marketplace.json" \
+    "marketplace root"
 }
 
 # check_hooks_json_valid — hooks.json 유효 JSON + 이벤트/매처 + ${CLAUDE_PLUGIN_ROOT} + 스크립트 존재·실행가능 (AC-R2b)
@@ -1060,6 +1045,16 @@ _migrate_wrapper_ready() {
   grep -qE -- '--migrate' "$REPO_ROOT/install.sh"
 }
 
+# _require_migrate_wrapper — 래퍼 미구현 시의 공통 FAIL 처리.
+# 두 번째 인자는 선택적 부연 문구. 미구현이면 1을 반환하므로 호출부는 `|| return`으로 중단한다.
+_require_migrate_wrapper() {
+  local name="$1" extra="${2:-}"
+  _migrate_wrapper_ready && return 0
+  fail "$name"
+  echo "[FAIL] $name: install.sh does not implement --migrate flag yet${extra}" >&2
+  return 1
+}
+
 # check_wrapper_static — curl 다운로드/CLAUDE.md append 부재 + 고정 목록 + 대칭 마커 가드 (AC-R6b)
 check_wrapper_static() {
   local name="check_wrapper_static"
@@ -1086,11 +1081,7 @@ check_wrapper_static() {
 # check_migrate_empty_dir — 레거시 미감지 빈 디렉토리에서 --migrate → 무변경 + 안내만 (AC-R6c)
 check_migrate_empty_dir() {
   local name="check_migrate_empty_dir"
-  if ! _migrate_wrapper_ready; then
-    fail "$name"
-    echo "[FAIL] $name: install.sh does not implement --migrate flag yet" >&2
-    return
-  fi
+  _require_migrate_wrapper "$name" || return
   local dir; dir="$(mk_tmp)"
   local before after
   before="$(cd "$dir" && find . | sort)"
@@ -1107,11 +1098,7 @@ check_migrate_empty_dir() {
 # check_migrate_no_flag_noop — 플래그 없이 실행 시 진단만, 무변경 (AC-R6d)
 check_migrate_no_flag_noop() {
   local name="check_migrate_no_flag_noop"
-  if ! _migrate_wrapper_ready; then
-    fail "$name"
-    echo "[FAIL] $name: install.sh does not implement --migrate flag yet (bare invocation still runs legacy curl-based installer)" >&2
-    return
-  fi
+  _require_migrate_wrapper "$name" " (bare invocation still runs legacy curl-based installer)" || return
   local dir; dir="$(mk_tmp)"
   mk_legacy_fixture "$dir"
   local before after
@@ -1129,11 +1116,7 @@ check_migrate_no_flag_noop() {
 # check_migrate_dry_run — 계획만 출력, 무변경 (AC-R6e)
 check_migrate_dry_run() {
   local name="check_migrate_dry_run"
-  if ! _migrate_wrapper_ready; then
-    fail "$name"
-    echo "[FAIL] $name: install.sh does not implement --migrate flag yet" >&2
-    return
-  fi
+  _require_migrate_wrapper "$name" || return
   local dir; dir="$(mk_tmp)"
   mk_legacy_fixture "$dir"
   local before after out failed=0
@@ -1155,11 +1138,7 @@ check_migrate_dry_run() {
 # CLAUDE.md는 import 라인만 제거되고 삭제되지 않음 (AC-R6a, AC-R6f)
 check_migrate_backup_preserves() {
   local name="check_migrate_backup_preserves"
-  if ! _migrate_wrapper_ready; then
-    fail "$name"
-    echo "[FAIL] $name: install.sh does not implement --migrate flag yet" >&2
-    return
-  fi
+  _require_migrate_wrapper "$name" || return
   local dir; dir="$(mk_tmp)"
   mk_legacy_fixture "$dir"
   # 사용자가 본문을 수정한 SO-ADK 에이전트 (AC-R6f)
@@ -1188,11 +1167,7 @@ check_migrate_backup_preserves() {
 # 다른 최상위 키 보존 (매핑 #14 정상 경로 절반)
 check_migrate_normal_path_hook_removal() {
   local name="check_migrate_normal_path_hook_removal"
-  if ! _migrate_wrapper_ready; then
-    fail "$name"
-    echo "[FAIL] $name: install.sh does not implement --migrate flag yet" >&2
-    return
-  fi
+  _require_migrate_wrapper "$name" || return
   if ! command -v jq &>/dev/null; then
     skip "$name" "jq not in PATH"
     return
@@ -1226,11 +1201,7 @@ check_migrate_normal_path_hook_removal() {
 # check_migrate_no_jq_guard — jq 부재 시 훅 엔트리 제거 실패 → 훅 스크립트 미이동 + exit 비0 (AC-R6g)
 check_migrate_no_jq_guard() {
   local name="check_migrate_no_jq_guard"
-  if ! _migrate_wrapper_ready; then
-    fail "$name"
-    echo "[FAIL] $name: install.sh does not implement --migrate flag yet" >&2
-    return
-  fi
+  _require_migrate_wrapper "$name" || return
   if ! command -v jq &>/dev/null; then
     skip "$name" "jq not in PATH originally — cannot construct no-jq guard test"
     return
@@ -1279,11 +1250,7 @@ check_migrate_no_jq_guard() {
 # check_migrate_bad_settings_json — settings.json이 유효 JSON이 아니면 훅 미이동 + exit 비0 (AC-R6h)
 check_migrate_bad_settings_json() {
   local name="check_migrate_bad_settings_json"
-  if ! _migrate_wrapper_ready; then
-    fail "$name"
-    echo "[FAIL] $name: install.sh does not implement --migrate flag yet" >&2
-    return
-  fi
+  _require_migrate_wrapper "$name" || return
   local dir; dir="$(mk_tmp)"
   mk_legacy_fixture "$dir"
   echo '{ this is not valid json' > "$dir/.claude/settings.json"
