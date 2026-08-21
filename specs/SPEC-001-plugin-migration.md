@@ -322,8 +322,8 @@ scratchpad에 스켈레톤 플러그인 2개 + 로컬 마켓플레이스를 구�
 - [x] **AC-R9**: Given 이관 브랜치의 최종 커밋, When `.claude/agents`·`.claude/skills`·`.claude/hooks`·`.claude/so-orchestrator.md` 경로를 확인하면, Then 존재하지 않고, 저장소 `CLAUDE.md`에 `@.claude/so-orchestrator.md` 라인이 없으며, **`CLAUDE.md`는 빈 파일이 아니라 dogfooding 안내문(자체 플러그인 사용 사실 + 온보딩/`--plugin-dir` 안내)을 담고 있다** (C-7).
 - [x] **AC-R10**: Given `plugins/so-adk-orchestrator/agents/so-orchestrator.md`, When Step 2-B 섹션을 검사하면, Then `curl ... install.sh` 명령이 없고 플러그인 업데이트 안내가 존재한다.
 - [x] **AC-R11a**: Given 이관 브랜치, When `git tag --list pre-plugin`과 `git merge-base`를 확인하면, Then `pre-plugin` 태그가 존재하고 이관 착수 직전(레거시 완전) 커밋을 가리킨다.
-- [x] **AC-R11b**: Given 이관 브랜치의 커밋 히스토리, When 커밋 순서를 검사하면, Then (1) 레거시 제거(R9) 커밋이 브랜치의 최종 커밋이고, (2) **최종 커밋의 직전 커밋 메시지에 trailer `Smoke-Verified: AC-R2c,AC-R3e`가 존재한다** — `git log -1 <최종 커밋>^ --format=%B | grep -F 'Smoke-Verified:'`로 기계 검증(R11-e — v2의 "PR 본문 서술 순서" 검증은 선후 증명 불가로 폐기).
-- [ ] **AC-R11c** (C-10) — **미충족: PR 미생성**. 브랜치는 push 완료(`origin/feat/spec-001-plugin-migration`), PR 생성 시 자동 충족된다: Given 이관 PR, When `gh pr view --json headRefName,baseRefName`을 확인하면, Then head는 `main`이 아닌 feature 브랜치이고 base는 `main`이다(R11-b 검증).
+- [x] **AC-R11b**: Given 이관 브랜치의 커밋 히스토리, When 커밋 순서를 검사하면, Then (1) 레거시 제거(R9) 커밋이 브랜치의 최종 커밋이고, (2) **최종 커밋의 직전 커밋 메시지에 trailer `Smoke-Verified: AC-R2c,AC-R3e`가 존재한다** — `git log -1 <최종 커밋>^ --format=%B | grep -F 'Smoke-Verified:'`로 기계 검증(R11-e — v2의 "PR 본문 서술 순서" 검증은 선후 증명 불가로 폐기). **v3.4 각주**: C7(`a0948a6`) 이후 SPEC 문서 커밋 2건이 추가되어 C7은 브랜치의 물리적 최종 커밋이 아니게 되었다. 본 AC가 방어하려던 것은 "스모크 선언보다 레거시 제거가 앞서는 것"이며, 그 선후는 `a0948a6`와 그 부모 `de74b90` 사이에서 그대로 성립한다. 이후 얹힌 2건은 **코드 변경이 없는 문서 커밋**이다 — 조건 (1)의 실질은 "레거시 제거 이후 코드 변경 없음"으로 읽는다.
+- [ ] **AC-R11c** (C-10, **v3.4 문언 정정**): Given 이관 이력, When `git log --oneline main..feat/spec-001-plugin-migration`과 main의 머지 커밋을 확인하면, Then (1) 모든 이관 커밋이 `main`이 아닌 feature 브랜치에 있고, (2) main 반영이 **`--no-ff` 머지 커밋**으로 수행되었다. **원안 정정 사유**: 원안은 `gh pr view` 기반이었으나, 단독 소유 저장소에서 자기 PR을 자기가 머지하는 것은 형식이고 검증하려는 실질(R11-b — main에 중간 상태 미서빙)과 무관하다. 머지 커밋 요구는 유지한다 — R11-f 롤백 절차 `git revert -m 1 <merge-commit>`이 머지 커밋의 존재를 전제하므로, fast-forward 반영은 README에 기재한 롤백법을 거짓으로 만든다.
 - [ ] **AC-R12a** (**미충족: 릴리스 시점 절차** — 브랜치 완료 조건이 아니다. 릴리스 시 1회 수행 — `tests/run-checks.sh` 미포함, C-9): Given 이관 완료 저장소, When 릴리스 시점에 `claude plugin tag ./plugins/so-adk-core`를 실행하면, Then plugin.json과 marketplace 엔트리의 버전 일치가 검증되고 `so-adk-core--v1.0.0` 태그가 생성된다(orchestrator 동일). 실제 태그를 만드는 부작용이 있으므로 자동 테스트에 넣지 않는다.
 - [x] **AC-R12b**: Given `README.md`, When 개발 섹션을 검사하면, Then 릴리스 절차(버전 범프 → `claude plugin tag` → push)가 문서화되어 있다.
 
@@ -345,7 +345,7 @@ scratchpad에 스켈레톤 플러그인 2개 + 로컬 마켓플레이스를 구�
   | AC-R2c·AC-R3e | 실기기 스모크 | F22·F23 참조 |
   | AC-R8 | README 2종 8항목 대조 | 전 항목 충족, 설치 예시 명령의 `--scope` 누락 0건 |
 
-- **미충족 2종**: **AC-R11c**(PR 미생성 — 브랜치 push는 완료), **AC-R12a**(릴리스 시점 절차 — 브랜치 완료 조건 아님).
+- **미충족 2종**: **AC-R11c**(main 머지 대기 — v3.4에서 PR 기반 → 머지 커밋 기반으로 문언 정정), **AC-R12a**(릴리스 시점 절차 — 브랜치 완료 조건 아님).
 - **롤백 앵커**: `pre-plugin` 태그가 `906d909`(레거시 완전 상태)를 가리키며 원격 push 완료(`git ls-remote --tags origin pre-plugin` 양성) — R11(a)의 미확인 항목이던 태그 push가 이 시점에 해소됐다.
 
 
@@ -364,6 +364,8 @@ scratchpad에 스켈레톤 플러그인 2개 + 로컬 마켓플레이스를 구�
 | v3.2 | 2026-08-21 | **SPEC-002 선병합에 따른 카운트 갱신 (SPEC-002 N-1 대응).** SPEC-002가 `so-spike` 에이전트를 신설하여 `.claude/agents/`가 15개 → **16개**가 되었다. 본 SPEC의 에이전트 카운트를 3계열 8개소에서 갱신했다 — (a) Background·F4 반영 지점, (b) R1 구조도 주석·R2 불변식, **(c) R6 마이그레이션 래퍼의 고정 목록과 마커 grep 가드** ← 기능적으로 중요. 누락 시 curl 설치 사용자의 `.claude/agents/so-spike.md`만 레거시 경로에 고아로 남아 R8이 경고한 override 문제가 발동한다. (d) AC-R1a·AC-R6a 픽스처. **개정 이력의 과거 기록은 그대로 두었다**(당시 사실의 서술이므로). 미처리 — R7의 "기존 15개 검사 전수 매핑표"는 SPEC-002가 체크 9종을 추가해 **24개**가 되었으므로 stale하다. 이 매핑표 갱신은 SPEC-001 구현 착수 시 리베이스 작업으로 수행한다. |
 
 | v3.3 | 2026-08-21 | **구현 완료 — Status → Done.** C1~C7 전 커밋 완료, `tests/run-checks.sh` **40 passed / 0 failed / 1 skipped**. (1) **스모크 실측 등재**: AC-R2c(F22)·AC-R3e(F23) 실기기 1회 수행 후 확정 사실표에 등재하고 C6 커밋에 `Smoke-Verified: AC-R2c,AC-R3e` trailer 기재 — AC-R11b의 선후 기계 검증 성립(최종 커밋 C7의 diff는 `CLAUDE.md` 단독). (2) **AC 체크박스 일괄 표기**: 37종 중 **35종 충족**. 자동 27종은 run-checks, 수동 8종은 검증 요약 절에 근거 기록. 미충족은 **AC-R11c**(PR 미생성 — 브랜치 push는 완료)와 **AC-R12a**(릴리스 시점 절차, 브랜치 완료 조건 아님) 2종뿐이다. (3) **R11(a) 태그 push 해소**: arch T0의 미확인 항목이던 `pre-plugin` 태그 원격 push를 이 시점에 수행했다. (4) **범위 밖 처분 2건 기록**(잔여 리스크 절): F24 훅 글롭 결함은 고치지 않고 후속 SPEC으로 분리, C4 래퍼의 `settings.json` 소실 버그는 커밋 `84d274a`에서 RED 테스트 선행 후 수정(검사 38 → 40). (5) **C4 잔여 이행**: `install.ps1`이 구 curl 다운로더로 남아 있던 것을 R6 흐름으로 이식하고 C-8 베타 경고를 부착했다 — 단, `pwsh` 부재로 구문 검증조차 못 했으므로 Windows 수동 검증이 남아 있다. |
+
+| v3.4 | 2026-08-21 | **main 반영 방식 확정에 따른 AC 문언 정정 2건.** (1) **AC-R11c**: `gh pr view` 기반 → **머지 커밋 기반**으로 교체. 단독 소유 저장소에서 자기 PR을 자기가 머지하는 것은 형식이며, 검증하려는 실질(R11-b — 작업 기간 중 main에 중간 상태 미서빙)과 무관하다. 다만 **머지 커밋 요구는 유지**한다 — R11(f)와 README의 롤백 절차가 `git revert -m 1 <merge-commit>`이므로 fast-forward 반영은 문서에 적힌 롤백법을 거짓으로 만든다. (2) **AC-R11b 각주**: C7(`a0948a6`) 이후 SPEC 문서 커밋 2건이 얹혀 C7이 물리적 최종 커밋이 아니게 되었다. 본 AC가 방어하려던 선후("스모크 선언 → 레거시 제거")는 `de74b90`→`a0948a6`에서 그대로 성립하고 이후 2건은 코드 변경이 없으므로, 조건 (1)을 "레거시 제거 이후 코드 변경 없음"으로 읽는다고 명시했다. **미이행 기록**: main 머지 시점에 `raw.../main/install.ps1`이 **Windows 수동 검증을 마치지 못한 래퍼**를 서빙하기 시작한다. 구 ps1은 머지 후 어차피 동작 불능(`.claude/agents/*.md` 부재)이므로 새 래퍼가 낫다고 판단해 진행하되, 미검증 배포임을 여기에 남긴다. |
 
 ## v3 리뷰 결과
 
