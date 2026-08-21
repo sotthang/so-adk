@@ -18,6 +18,7 @@ SO-ADK는 Claude Code가 **전략적 오케스트레이터**처럼 자율적으�
 [2] Reviewer   → SPEC 검토 → 사용자 확인 요청 ✋ (수정 시 Planner 재호출)
 [3] Architect  → 파일 구조 및 인터페이스 설계 → specs/*.arch.md 저장
 [3.5] Scaffold → stub 파일 골격 생성 (신규 프로젝트일 때)
+[3.7] Spike    → 미검증 가정 실측, 저장소 사실 검증 (조건부)
 [4] Tester     → 실패하는 테스트 먼저 작성 (TDD RED)
 [5] Developer  → 테스트가 통과할 때까지 구현 (TDD GREEN)
      ↑ 테스트 통과까지 루프 (최대 5회)
@@ -85,7 +86,7 @@ SO-ADK가 자연어에서 의도를 감지하고 자동으로 라우팅합니다
 SO-ADK는 세 가지 레이어로 이루어져 있습니다:
 
 1. **`CLAUDE.md`** — 오케스트레이터를 import합니다. 자연어 의도 감지 → 에이전트 자율 호출 → SPEC 상태 관리 → 체크포인트 및 세션 재개 처리
-2. **`.claude/agents/`** — 15개 전문 에이전트 (Designer, Performance, Auditor 포함). `model`, `maxTurns`, `skills`가 설정된 정식 Claude Code 에이전트
+2. **`.claude/agents/`** — 16개 전문 에이전트 (Designer, Performance, Spike, Auditor 포함). `model`, `maxTurns`, `skills`가 설정된 정식 Claude Code 에이전트
 3. **`.claude/skills/`** — 에이전트 시작 시 `skills:` 필드로 프리로드되는 공유 빌딩 블록 (공통 원칙, TDD 워크플로우, SPEC 형식 규칙). 각 스킬은 `<name>/SKILL.md` 디렉터리 형식
 
 ### Greenfield vs Brownfield 자동 감지
@@ -117,6 +118,7 @@ SO-ADK가 요청 유형을 자동으로 판단합니다:
 | Auditor | sonnet | 데드코드, 레거시 의존성, drift 감지 (stateless) |
 | Preflight | sonnet | 테스트/린트 실행 및 diff 검토 |
 | Performance | sonnet | 병목/N+1 분석, 읽기 전용 리포트 |
+| Spike | sonnet | 미검증 가정 실측, 저장소 사실 검증 |
 | Security | opus | 깊은 보안 분석에 강한 추론 필요 |
 
 ---
@@ -151,6 +153,7 @@ your-project/
     │   ├── so-auditor.md              # Drift 감지 (sonnet, 선택적)
     │   ├── so-preflight.md            # PR 전 안전 체크 (sonnet)
     │   ├── so-performance.md          # 병목 분석, 읽기 전용 (sonnet)
+    │   ├── so-spike.md                # 미검증 가정 검증 (sonnet)
     │   └── so-security.md             # OWASP 보안 검토 (opus)
     └── skills/                        # 각 스킬은 SKILL.md를 가진 디렉터리
         ├── so-foundation/SKILL.md     # 모든 에이전트 공통 원칙 (프리로드)

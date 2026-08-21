@@ -18,6 +18,7 @@ Just say *"build me a login feature"* and SO-ADK automatically runs the full pip
 [2] Reviewer   → reviews the SPEC → pauses for your confirmation ✋ (loops with Planner on changes)
 [3] Architect  → designs file structure and interfaces → saves specs/*.arch.md
 [3.5] Scaffold → generates stub file skeleton (for new projects)
+[3.7] Spike    → measures unverified assumptions, validates facts (conditional)
 [4] Tester     → writes failing tests first (TDD RED)
 [5] Developer  → implements until tests pass (TDD GREEN)
      ↑ loops until all tests pass (max 5 loops)
@@ -85,7 +86,7 @@ SO-ADK detects intent from natural language and routes automatically:
 SO-ADK has three layers:
 
 1. **`CLAUDE.md`** — imports the orchestrator. Detects intent, routes to agents, manages the SPEC lifecycle, handles checkpoints and session resume
-2. **`.claude/agents/`** — 15 specialized sub-agents (including Designer, Performance, and Auditor), each a proper Claude Code agent with `model`, `maxTurns`, and `skills`
+2. **`.claude/agents/`** — 16 specialized sub-agents (including Designer, Performance, Spike, and Auditor), each a proper Claude Code agent with `model`, `maxTurns`, and `skills`
 3. **`.claude/skills/`** — shared building blocks preloaded into agents via the `skills:` field (foundation principles, TDD workflow, SPEC format rules). Each skill is a `<name>/SKILL.md` directory
 
 ### Greenfield vs Brownfield
@@ -117,6 +118,7 @@ If a pipeline is interrupted mid-way, SO-ADK detects the in-progress SPEC on the
 | Auditor | sonnet | Dead code, stale deps, drift detection (stateless) |
 | Preflight | sonnet | Test/lint runner and diff review |
 | Performance | sonnet | Bottleneck/N+1 analysis, read-only report |
+| Spike | sonnet | Measure unverified assumptions, validate facts against repository reality |
 | Security | opus | Deep security analysis requires strong reasoning |
 
 ---
@@ -151,6 +153,7 @@ your-project/
     │   ├── so-auditor.md              # Drift detection (sonnet, optional)
     │   ├── so-preflight.md            # Pre-PR safety check (sonnet)
     │   ├── so-performance.md          # Bottleneck analysis, read-only (sonnet)
+    │   ├── so-spike.md                # Verify unverified assumptions (sonnet)
     │   └── so-security.md             # OWASP security review (opus)
     └── skills/                        # each skill is a directory with SKILL.md
         ├── so-foundation/SKILL.md     # Core principles for all agents (preloaded)

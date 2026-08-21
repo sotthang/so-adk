@@ -1,9 +1,12 @@
 # SPEC-002: 파이프라인 검증 격차 해소 — 툴 권한 정정 + 검증 스파이크 편입 + 리뷰 산출물 보존
 
-**Status**: Approved
+**Status**: Done
 **Created**: 2026-08-21
+**Architected**: 2026-08-21 (설계: `SPEC-002-pipeline-verification-gap.arch.md`. Architect가 미검증 가정 4건을 R5 형식으로 보고했고 오케스트레이터가 측정하여 확정 사실 F1~F4로 등재. F1 음성에 따라 AC-R7a·R7c·R7d 재기준선. Status 갱신은 so-architect에 Edit이 없어 오케스트레이터가 대행 — C-1 모순의 실황 재현)
 **Revised**: 2026-08-21 (v1.1 — 승인 조건 C-1~C-4 + N-1~N-6 + Goal 범위 정합 반영. 오케스트레이터 직접 반영, 재검토 불요 판정에 따름)
 **Reviewed**: 2026-08-21 (v1 검토 — **조건부 Approved**. 착수 전 반영 필수인 문언 정정 4건(C-1~C-4)이 있다. 리뷰 전문: `SPEC-002-pipeline-verification-gap.review-v1.md` — Reviewer에 Write 툴이 없어 파일 생성 실패, 오케스트레이터가 대신 저장. 이 사건 자체가 R2의 추가 실증 근거다)
+**Tested (RED)**: 2026-08-21 (`tests/run-checks.sh`에 신규 체크 9종 추가 — 전부 FAIL 확인. 기존 14종 그대로 PASS + 기지 실패 1건(`check_settings_json_valid`, F1 재기준선) 유지. `check_no_hardcoded_agent_paths`는 설계 §4.3의 awk 배제 패턴을 그대로 사용해 자기 참조 오탐 없이 리졸버 도입 전 하드코드 5건을 정확히 검출함을 주입 테스트(5→6)로 재확인. Summary: `14 passed, 10 failed, 0 skipped`)
+**Documented**: 2026-08-21 (문서 갱신 완료 — README.md/README.ko.md 에이전트 개수 15→16, 모델 표/파일트리/파이프라인 설명에 so-spike 반영. `.claude/so-orchestrator.md` 다이어그램 순서 정정 [3.7]→[3.5] 앞으로. 최종 테스트: `23 passed, 1 failed` — 기지 실패 1건 유지, SPEC-002 완성)
 
 > **승인 조건 C-1~C-4 — 반영 완료 (v1.1, 2026-08-21)**
 >
@@ -56,6 +59,24 @@ D4는 D2가 원인이므로 별도 요구사항으로 분리하지 않고 **R2�
 - so-designer에 Skill 툴 — 필요 스킬(so-foundation, so-context)은 frontmatter `skills:`로 프리로드됨. 추가 스킬 호출 임무 없음
 - so-explainer/so-security/so-performance/so-auditor에 쓰기 계열 — 보고 전용 임무 유지가 안전장치
 - so-reviewer에 Bash — 측정은 so-spike의 임무(R4). Reviewer가 직접 측정하면 판정자와 측정자가 섞여 검토 독립성이 깨지고, opus 리뷰 턴이 측정에 소모됨
+
+## 확정 사실 (스파이크 실측)
+
+Architect가 R5 형식으로 보고한 미검증 가정 4건을, so-spike 미존재로 **오케스트레이터가 직접 측정**했다(2026-08-21).
+so-spike 도입 후에는 이 역할이 R4 에이전트로 이관된다.
+
+| # | 가정 | 판정 | 실측 근거 | 반영 지점 |
+| --- | --- | --- | --- | --- |
+| F1 | 현재 main에서 `tests/run-checks.sh`가 전체 GREEN이다 | **음성** | `bash tests/run-checks.sh` → `Summary: 14 passed, 1 failed` — `check_settings_json_valid` 실패(`.claude/settings.json`이 `.gitignore` 등재로 저장소에 부재) | **AC-R7a·AC-R7c·AC-R7d 재기준선 강제** — 아래 참조 |
+| F2 | `check_frontmatter`의 glob이 `so-spike.md`를 자동 포섭하고 초안 frontmatter가 통과한다 | **양성** | glob은 `.claude/agents/*.md`이므로 신설 파일 자동 포함. 초안에 `name`·`description`·`tools`·`model` 4필드 모두 존재, 첫 줄 `---` 확인 | AC-R4a 성립 |
+| F3 | §4.3의 awk 배제 + 알터네이션 grep이 (a) 자기 오탐 없고 (b) 주입 하드코드를 잡는다 | **양성** | (a) 패턴을 담은 소스 라인 자체 매치 0건 — 소스 텍스트는 `\.claude/(agents\|...` 형태라 리터럴 불일치. (b) 현행 검출 5건(리뷰 감사의 하드코드 5개 함수와 일치) → 1줄 주입 후 6건 | AC-R7b 상설 체크 격상(N-7 판정) 성립 |
+| F4 | `grep -qw Edit`가 `MultiEdit`에 비매치다 | **양성** | `tools: Read, Grep, Glob, MultiEdit, Bash` → 비매치. 대조군 `Read, Edit, MultiEdit` → 매치 | `check_tool_grants` 정확성 성립 |
+
+| F5 | 리졸버 치환(구조 변경)이 기존 검사의 통과/실패 집합을 100% 보존한다 | **음성** | 치환 전 `14 passed, 10 failed` → 치환 후 `15 passed, 9 failed`. `check_no_hardcoded_agent_paths`가 FAIL→PASS 전환 — 이 체크는 하드코드 부재를 직접 검사하므로 하드코드를 없애는 커밋에서 뒤집히는 것이 논리적 필연 (구현 중 Developer 보고) | **AC-R7a에 메타 체크 예외 조항 추가** |
+
+**F1(음성)에 따른 재기준선**: 기준선은 "전체 GREEN"이 아니라 **"기지 실패 1건(`check_settings_json_valid`)만 잔존"** 이다.
+이 검사는 `.claude/settings.json`을 요구하는데 해당 파일은 `.gitignore:3`에 등재되어 저장소에 존재하지 않는다.
+해소는 **SPEC-001 R4**(settings.json을 커밋 대상으로 전환)의 몫이며 **본 SPEC의 범위가 아니다**.
 
 ## Requirements
 
@@ -229,7 +250,9 @@ D4는 D2가 원인이므로 별도 요구사항으로 분리하지 않고 **R2�
 
 ### R7 — 테스트 하네스
 
-- [ ] **AC-R7a** — Given 리졸버 도입 커밋(구조 변경) 직후, When `tests/run-checks.sh`를 현재 `.claude/` 레이아웃에서 실행, Then 도입 전과 동일하게 전체 GREEN이다
+- [ ] **AC-R7a** (F1 재기준선 + F5 메타 체크 예외) — Given 리졸버 치환 커밋(구조 변경) 직후, When `tests/run-checks.sh`를 실행, Then **`check_no_hardcoded_agent_paths`를 제외한 모든 검사의 통과/실패 집합이 치환 전과 완전히 동일**하다. 그 체크 하나만 FAIL→PASS로 전환되며, **그 전환이 곧 이 구조 변경이 완료되었다는 신호**다.
+  - **예외 사유 (F5)**: 이 체크는 "하드코드 경로의 부재"를 직접 검사하므로, 하드코드를 제거하는 바로 그 커밋에서 판정이 뒤집히는 것이 **논리적 필연**이다. 검증 대상(하드코드 존재)과 검증기(그것을 없애는 치환)가 같은 커밋에 있어 "통과/실패 집합 100% 불변"과 공존할 수 없다. 설계 §5는 이 체크가 커밋 5에 신설되는 것을 전제해 이 충돌을 보지 못했으나, RED 단계에서 신규 9종을 한 파일에 함께 작성하는 것이 자연스러우므로 **AC 문언을 현실에 맞춘다** (구현 중 Developer가 발견해 보고, 임의 수정하지 않음).
+  - 실측: 치환 전 `14 passed, 10 failed` → 치환 후 `15 passed, 9 failed`. 차이는 정확히 이 체크 1건.
 - [ ] **AC-R7b** — Given `tests/run-checks.sh` 본문, When 리졸버 함수 외부에서 `.claude/agents` 또는 `.claude/so-orchestrator.md` 하드코드를 grep, Then 매치가 없다
-- [ ] **AC-R7c** — Given 본 SPEC 구현 완료 상태, When `tests/run-checks.sh` 실행, Then 신규 체크 8종 포함 전체 GREEN이다
-- [ ] **AC-R7d** (수동 스모크 — SPEC-001 병합 후에만 가능) — Given `plugins/` 레이아웃, When `tests/run-checks.sh` 실행, Then 리졸버가 새 경로를 감지하여 전체 GREEN이다
+- [ ] **AC-R7c** (F1 재기준선 + N-7 판정 반영) — Given 본 SPEC 구현 완료 상태, When `tests/run-checks.sh` 실행, Then **신규 체크 9종**(AC-R7b가 상설 체크로 격상되어 8→9)이 **전부 통과**하고, 기존 검사 중 **이관 전 통과하던 것이 전부 그대로 통과**하며, 실패는 기지 1건(`check_settings_json_valid`)뿐이다
+- [ ] **AC-R7d** (수동 스모크 — SPEC-001 병합 후에만 가능) — Given `plugins/` 레이아웃, When `tests/run-checks.sh` 실행, Then 리졸버가 새 경로를 감지하여 **AC-R7c와 동일한 기준**(신규 9종 전부 + 기존 통과분 전부)을 만족한다. SPEC-001 R4가 settings.json을 커밋 대상으로 전환하므로 이 시점에는 `check_settings_json_valid`도 통과할 것으로 예상된다
