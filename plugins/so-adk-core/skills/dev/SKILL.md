@@ -10,4 +10,4 @@ $ARGUMENTS
 
 If no arguments provided, ask: "어떤 기능을 개발할까요?"
 
-Follow the orchestration pipeline defined in CLAUDE.md exactly — invoke each agent in order using the Agent tool.
+Follow the orchestration pipeline defined by the so-adk-orchestrator plugin's so-orchestrator agent exactly — invoke each agent in order using the Agent tool.
