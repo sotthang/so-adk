@@ -166,6 +166,22 @@ Then **use the Agent tool** to invoke the sub-agent. Pass the user's original re
 
 Complexity gate가 **비활성**이면 기존 Step 3 → Step 4 순서대로 진행.
 
+### Step 3.7 — Verification spike
+
+Reviewer 또는 Architect의 보고 직후, **Step 4 사용자 체크포인트 전에** 자동 발동한다 (Step 3.5 복잡도 게이트와 독립적).
+
+**흐름**:
+
+1. 보고에 "미검증 가정" 3열(가정 내용 / 거짓일 경우 무너지는 것 / 제안 측정 방법)이 모두 채워진 항목이 있는지 확인한다. 2열에 R번호·AC·설계 결정이 지목되지 않았거나 3열이 구체적 측정 방법이 아니면 일반 리스크로 간주하고 스파이크 대상에서 제외한다.
+2. 유자격 가정이 없으면 → 기존 흐름(Step 4 등)으로 그대로 진행한다.
+3. 이 SPEC의 스파이크 배치 사용 횟수가 **최대 2회**를 초과했으면 → 진행을 멈추고 사용자에게 보고 후 지시를 요청한다 (하드 캡). 스파이크 배치는 리뷰 리비전 상한(3회)에 산입하지 않는다.
+4. `so-spike`를 가정 목록(4개 필드 모두 포함) + F 시작 번호(기존 확정 사실 최댓값 + 1)와 함께 호출한다.
+   - 확정 사실표가 반환되면 → `so-planner`를 재호출하여 SPEC의 "확정 사실" 섹션에 병합한다 (F번호 연속). **음성 판정 사실은 해당 R의 재설계를 강제한다** — 리스크 항목으로 격하하지 않는다. 병합 후 `so-reviewer`를 재검토 호출한다.
+   - **스파이크 사망 분기**: so-spike가 확정 사실표를 반환하지 않고 종료하면(세션 한도 초과·크래시 등) 해당 배치의 **모든 가정을 `측정불능`으로 간주**하고, 배치를 소진 처리한 뒤 사용자에게 보고하고 지시를 요청한다 (자동 재시도 금지).
+5. Step 3.5 진행 중 스파이크 결과로 SPEC이 수정되면 preview `.arch.md`는 기존 규칙대로 폐기하고 재검토 통과 후 so-architect를 정식 호출한다. 확정 사실 섹션 추가뿐이고 음성이 없으면 preview 승격 규칙을 그대로 적용해도 된다.
+
+**사실 불변 원칙** — 확정 사실표의 **`양성`·`음성` 판정에만** 적용한다. 이 두 판정은 새 측정 없이 재의문 대상이 될 수 없고 Reviewer는 다시 블로커로 제기할 수 없다. **`측정불능`은 사실이 아니라 미해소 리스크이며 Reviewer는 계속 제기할 수 있다.** 측정불능 항목이 남은 채 승인하려면 **사용자에게 명시적으로 고지**한다.
+
 ### Step 4 — Handle checkpoints
 
 After `so-reviewer` completes, **always stop and ask the user**:
@@ -261,6 +277,8 @@ SPEC: specs/archive/SPEC-{NNN}-{slug}.md (Done)
 [3]   so-architect  → file structure + interfaces → saves .arch.md
        ↑ reads .design.md if exists
 [3.5] so-scaffold   → create stub files (only if target files don't exist)
+[3.7] so-spike      → 미검증 가정 실측 → 확정 사실표 (조건부, SPEC당 최대 2배치)
+       ↑ Reviewer/Architect 보고에 3열 완비 가정이 있을 때 발동
 [4]   so-tester     → write failing tests (TDD RED)
 [5]   so-developer  → implement until tests pass (TDD GREEN)
        ↑ loop with so-tester on failure (max 5 loops)
@@ -348,6 +366,7 @@ so-preflight → reads  git diff + runs tests/lint (no SPEC required)
 so-debugger  → reads  error/stack trace + relevant files (no SPEC required)
 so-explainer → reads  target files (no SPEC required)
 so-auditor   → reads  project files (no SPEC required) — stateless drift sensor
+so-spike     → reads  가정 목록 + writes scratchpad only, no SPEC status update
 ```
 
 When invoking an agent via the Agent tool, include the SPEC file path and any previous agent's output in the prompt.
