@@ -117,9 +117,13 @@ plugin's agents, skills, and settings add to your session.
 Select **so-adk** in the marketplace panel and choose *Update* for each plugin. Or from the CLI:
 
 ```bash
-claude plugin update so-adk-core@so-adk
-claude plugin update so-adk-orchestrator@so-adk
+claude plugin update so-adk-core@so-adk --scope project
+claude plugin update so-adk-orchestrator@so-adk --scope project
 ```
+
+**Pass the same `--scope` you installed with.** `plugin update` defaults to `--scope user`, so
+without the flag it fails with *"Plugin is not installed at scope user"* for anyone who followed the
+project/local install above. Use `--scope local` if that is how you installed.
 
 The old `curl ... install.sh | bash` path no longer installs anything — see [Migrating from the curl installer](#migrating-from-the-curl-installer).
 

@@ -106,9 +106,11 @@ claude plugin list
 마켓플레이스 패널에서 **so-adk**를 선택하고 각 플러그인의 *Update*를 실행하세요. CLI로도 가능합니다:
 
 ```bash
-claude plugin update so-adk-core@so-adk
-claude plugin update so-adk-orchestrator@so-adk
+claude plugin update so-adk-core@so-adk --scope project
+claude plugin update so-adk-orchestrator@so-adk --scope project
 ```
+
+**설치할 때 쓴 `--scope`를 그대로 붙이세요.** `plugin update`의 기본값은 `--scope user`라서, 위 안내대로 project/local 스코프로 설치했다면 플래그 없이 실행할 경우 *"Plugin is not installed at scope user"* 로 **실패합니다**. `--scope local`로 설치했다면 그쪽을 쓰세요.
 
 기존의 `curl ... install.sh | bash` 경로는 더 이상 아무것도 설치하지 않습니다 — [curl 설치 방식에서 마이그레이션](#curl-설치-방식에서-마이그레이션) 참조.
 
