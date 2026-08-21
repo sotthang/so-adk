@@ -140,6 +140,11 @@ mk_tmp() {
 # 주의: 이 함수는 의도적으로 `.claude/agents`·`.claude/so-orchestrator.md` 리터럴을
 # 포함한다(레거시 레이아웃 재현이 목적) — check_no_hardcoded_agent_paths의 예외 목록에
 # 등재되어 있다(§6.4 자기 충돌 방어).
+# _file_mode — 파일 퍼미션을 8진수 3자리로. GNU stat와 BSD stat 양쪽 지원.
+_file_mode() {
+  stat -c '%a' "$1" 2>/dev/null || stat -f '%OLp' "$1" 2>/dev/null
+}
+
 mk_legacy_fixture() {
   local dir="$1"
   mkdir -p "$dir/.claude/agents" "$dir/.claude/skills" "$dir/.claude/hooks"
@@ -1313,9 +1318,78 @@ check_migrate_empty_dir
 check_migrate_no_flag_noop
 check_migrate_dry_run
 check_migrate_backup_preserves
+# check_migrate_partial_hooks_preserved — settings.json에 훅 이벤트가 한쪽만 있어도
+# 다른 키가 보존되고 파일이 비워지지 않는다 (AC-R6a 보존 요구의 미검증 분기).
+# 기존 mk_legacy_fixture는 SessionStart·PostToolUse를 둘 다 넣어 이 경로를 밟지 않았다.
+check_migrate_partial_hooks_preserved() {
+  local name="check_migrate_partial_hooks_preserved"
+  _require_migrate_wrapper "$name" || return
+  if ! command -v jq &>/dev/null; then
+    skip "$name" "jq not in PATH"
+    return
+  fi
+  local dir; dir="$(mk_tmp)"
+  mk_legacy_fixture "$dir"
+  # SessionStart만 제거 — PostToolUse 한쪽만 남은 상태를 만든다
+  local settings="$dir/.claude/settings.json"
+  local tmp; tmp="$(mktemp)"
+  jq 'del(.hooks.SessionStart)' "$settings" > "$tmp" && mv "$tmp" "$settings"
+
+  ( cd "$dir" && bash "$REPO_ROOT/install.sh" --migrate ) &>/dev/null
+
+  local failed=0
+  if [ ! -s "$settings" ]; then
+    echo "[FAIL] $name: settings.json was emptied (expected other keys preserved)" >&2
+    fail "$name"
+    return
+  fi
+  if ! jq . "$settings" &>/dev/null; then
+    echo "[FAIL] $name: settings.json is no longer valid JSON after --migrate" >&2
+    failed=1
+  fi
+  if [ "$(jq -r '.model' "$settings" 2>/dev/null)" != "opus" ]; then
+    echo "[FAIL] $name: unrelated key .model not preserved" >&2
+    failed=1
+  fi
+  if jq -e '.hooks.PostToolUse' "$settings" &>/dev/null; then
+    echo "[FAIL] $name: PostToolUse hook entry not removed" >&2
+    failed=1
+  fi
+  if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
+}
+
+# check_migrate_preserves_file_mode — 래퍼가 CLAUDE.md·settings.json의 퍼미션을 바꾸지 않는다.
+# mktemp(0600) 산출물을 mv로 덮으면 원본 모드가 0600으로 교체된다.
+check_migrate_preserves_file_mode() {
+  local name="check_migrate_preserves_file_mode"
+  _require_migrate_wrapper "$name" || return
+  if ! command -v jq &>/dev/null; then
+    skip "$name" "jq not in PATH"
+    return
+  fi
+  local dir; dir="$(mk_tmp)"
+  mk_legacy_fixture "$dir"
+  chmod 644 "$dir/CLAUDE.md" "$dir/.claude/settings.json"
+
+  ( cd "$dir" && bash "$REPO_ROOT/install.sh" --migrate ) &>/dev/null
+
+  local failed=0 f mode
+  for f in "$dir/CLAUDE.md" "$dir/.claude/settings.json"; do
+    [ -f "$f" ] || continue
+    mode="$(_file_mode "$f")"
+    if [ "$mode" != "644" ]; then
+      echo "[FAIL] $name: ${f##*/} mode changed 644 -> $mode" >&2
+      failed=1
+    fi
+  done
+  if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
+}
+
 check_migrate_normal_path_hook_removal
 check_migrate_no_jq_guard
 check_migrate_bad_settings_json
+check_migrate_partial_hooks_preserved
+check_migrate_preserves_file_mode
 
 echo ""
 echo "Summary: $PASS passed, $FAIL failed, $SKIP skipped"

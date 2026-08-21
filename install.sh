@@ -187,15 +187,17 @@ remove_hook_entries() {
 
   local tmp
   tmp="$(mktemp)"
+  # `X as $v | BODY`는 X가 빈 스트림이면 BODY를 한 번도 실행하지 않아 jq가 출력을 0개 낸다.
+  # `.hooks.SessionStart // empty`가 바로 그 경우여서, 훅 이벤트가 한쪽만 있는
+  # settings.json이 통째로 비워졌다. 빈 스트림을 만들지 않는 조건 분기로 바꾼다.
   if ! jq '
-    (.hooks.PostToolUse // empty) as $p
-    | if $p then
-        .hooks.PostToolUse = ($p | map(select(([.hooks[]?.command] | index(".claude/hooks/post-edit-check.sh")) | not)))
-      else . end
-    | (.hooks.SessionStart // empty) as $s
-    | if $s then
-        .hooks.SessionStart = ($s | map(select(([.hooks[]?.command] | index(".claude/hooks/session-start-resume.sh")) | not)))
-      else . end
+    def drop_entries($cmd): map(select(([.hooks[]?.command] | index($cmd)) | not));
+    (if (.hooks.PostToolUse | type) == "array"
+       then .hooks.PostToolUse |= drop_entries(".claude/hooks/post-edit-check.sh")
+       else . end)
+    | (if (.hooks.SessionStart | type) == "array"
+       then .hooks.SessionStart |= drop_entries(".claude/hooks/session-start-resume.sh")
+       else . end)
     | if ((.hooks.PostToolUse // null) == []) then del(.hooks.PostToolUse) else . end
     | if ((.hooks.SessionStart // null) == []) then del(.hooks.SessionStart) else . end
     | if ((.hooks // {}) == {}) then del(.hooks) else . end
@@ -205,13 +207,16 @@ remove_hook_entries() {
     _manual_hook_removal_instructions
     return 1
   fi
-  if ! jq . "$tmp" &>/dev/null; then
+  # `jq .`는 0바이트 입력을 유효로 통과시키므로 크기를 먼저 본다.
+  if [ ! -s "$tmp" ] || ! jq . "$tmp" &>/dev/null; then
     rm -f "$tmp"
     echo "Post-removal .claude/settings.json failed to re-parse as valid JSON." >&2
     _manual_hook_removal_instructions
     return 1
   fi
-  mv "$tmp" "$settings"
+  # mv는 mktemp의 0600 모드까지 함께 옮겨 원본 퍼미션을 바꾼다 — 원본 파일에 덮어쓴다.
+  cat "$tmp" > "$settings"
+  rm -f "$tmp"
   return 0
 }
 
@@ -266,7 +271,9 @@ do_migrate() {
     local tmp
     tmp="$(mktemp)"
     grep -vxF "$LEGACY_CLAUDE_MD_IMPORT" "CLAUDE.md" > "$tmp" 2>/dev/null || true
-    mv "$tmp" "CLAUDE.md"
+    # mv 대신 원본에 덮어써서 퍼미션을 보존한다(빈 파일이 되어도 삭제하지 않는다).
+    cat "$tmp" > "CLAUDE.md"
+    rm -f "$tmp"
   fi
 
   echo ""
