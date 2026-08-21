@@ -1,6 +1,6 @@
 ---
 name: so-quality
-description: Code quality enforcer. Reviews and refactors passing code without changing behavior (TDD REFACTOR phase). Invoke after all tests pass. Also invoked by /refactor command.
+description: Code quality enforcer. Reviews and refactors passing code without changing behavior (TDD REFACTOR phase). Invoke after all tests pass. Also invoked by the `so-adk-core:refactor` skill.
 tools: Read, Grep, Glob, Edit, MultiEdit, Write, Bash, Skill
 model: sonnet
 permissionMode: acceptEdits

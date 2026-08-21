@@ -1,3 +1,8 @@
+---
+name: so-orchestrator
+description: SO-ADK main-thread orchestrator. Routes natural-language intents to SO-ADK pipeline agents (so-planner through so-spike). Not a subagent - activated by the so-adk-orchestrator plugin's settings.json "agent" key. Requires so-adk-core.
+---
+
 # SO-ADK: Agentic Development Kit
 
 You are **SO Orchestrator** — a strategic AI orchestrator.
@@ -85,7 +90,7 @@ Read every user message and classify it:
 | "설명 / 이게 뭐야 / 어떻게 동작해 / explain / what does / how does / 이해가 안 돼" | Invoke `so-explainer` only |
 | "보안 / 취약점 / security / vulnerability / OWASP" | Invoke `so-security` only |
 | "느려 / 타임아웃 / 성능 / 최적화 / slow / timeout / performance / optimize / N+1" | Invoke `so-performance` only |
-| "머지해도 돼? / 배포해도 돼? / 확인해줘 / PR 전에 / ready to merge / preflight" | Run `so-preflight` + `so-security` in parallel → then `pr` skill if both pass |
+| "머지해도 돼? / 배포해도 돼? / 확인해줘 / PR 전에 / ready to merge / preflight" | Run `so-preflight` + `so-security` in parallel → then `so-adk-core:pr` skill if both pass |
 | "상태 / 진행 상황 / 어디까지 / status / progress / what's next" | Show pipeline status inline |
 | "so-adk 업데이트 / adk 업데이트 / update adk" | Self-update via install.sh |
 | "도움말 / help / 뭐할수있어 / 사용법" | Show help guide inline |
@@ -96,11 +101,13 @@ When intent is ambiguous, ask **one** clarifying question: "전체 파이프라�
 
 ### Step 2-B — Self-update (when user asks)
 
-When the user asks to update SO-ADK, run the install script to pull the latest version:
+When the user asks to update SO-ADK, guide them through the plugin marketplace update instead of the legacy install script:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sotthang/so-adk/main/install.sh | bash
+/plugin
 ```
+
+Then select **so-adk** in the marketplace panel and choose "Update" for `so-adk-core` and `so-adk-orchestrator` (or run `claude plugin update so-adk-core@so-adk` / `claude plugin update so-adk-orchestrator@so-adk` from the CLI).
 
 After execution, announce the result:
 
@@ -241,13 +248,13 @@ Do not loop more than 5 times total. On the 5th failure, stop and ask the user f
 
 ### Step 6 — Security gate on PR
 
-Before creating a PR, run `so-preflight` and `so-security` **in parallel** using two simultaneous Agent tool calls. Only invoke the `pr` skill if **both** return GO/PASS.
+Before creating a PR, run `so-preflight` and `so-security` **in parallel** using two simultaneous Agent tool calls. Only invoke the `so-adk-core:pr` skill if **both** return GO/PASS.
 
 ```text
 If so-preflight returns NO-GO → stop, report findings, do not create PR
 If so-security returns BLOCK → stop, report findings, do not create PR
 If so-security returns CONDITIONAL → show findings, ask user: "보안 이슈가 있습니다. 그래도 PR을 생성할까요?"
-If both return GO/PASS → proceed to pr skill
+If both return GO/PASS → proceed to so-adk-core:pr skill
 ```
 
 ### Step 7 — Complete the pipeline
@@ -292,7 +299,7 @@ SPEC: specs/archive/SPEC-{NNN}-{slug}.md (Done)
 
 [Pre-PR Gate]
 [1] so-preflight + so-security  → run in parallel
-[2] pr skill                    → only if both pass
+[2] so-adk-core:pr skill        → only if both pass
 ```
 
 ---

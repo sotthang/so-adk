@@ -1,6 +1,6 @@
 # SPEC-001: SO-ADK Claude Code 플러그인 전환
 
-**Status**: Approved
+**Status**: Done
 **Created**: 2026-08-21
 **Reviewed**: 2026-08-21 (v3 3차 검토 — **Approved**. 리뷰 전문: [`SPEC-001-plugin-migration.review-v3.md`](SPEC-001-plugin-migration.review-v3.md))
 **Revised**: 2026-08-21 (v3.1 — 승인 조건이던 M-1·M-2 문언 수정 반영 + I-1 `--plugin-dir` 역할축 재프레이밍. 재검토 불요 판정에 따라 오케스트레이터가 직접 반영)
@@ -42,6 +42,17 @@ scratchpad에 스켈레톤 플러그인 2개 + 로컬 마켓플레이스를 구�
 | F12 | **커밋된 project `.claude/settings.json`만으로는 플러그인이 활성화되지 않는다.** `extraKnownMarketplaces`(정규 형태) + `enabledPlugins`를 커밋한 상태로 새 세션을 열어도 플러그인 미로드(상대경로·절대경로 양쪽 모두 음성). 명시적 `claude plugin install <name>@<mkt> --scope project` 실행 후에야 활성화(대조군 양성) | 신규 세션 로드 여부 직접 확인 + 대조군 실험 | **C-2 확정 — v2 R11의 "settings.json 커밋으로 dogfooding 즉시 복구" 메커니즘은 작동하지 않음 → R11 재설계.** `extraKnownMarketplaces` 커밋은 마켓플레이스 **자동 등록**까지만 유효하고 **설치는 하지 않는다** — R4 문언에서 구분 기술 |
 | F13 | **잘못된 `extraKnownMarketplaces` source 형태는 에러 없이 플러그인을 조용히 `disabled`로 만든다.** `{"source":{"source":"local","path":"."}}`처럼 쓰면 `claude plugin list`에서 `✘ disabled`, 에러 메시지 없음. 정규 형태로 고치자 즉시 `✔ enabled` | `claude plugin list` 상태 직접 확인 | R4 — 커밋된 settings.json의 source 스키마를 `tests/run-checks.sh`에서 형태 검증 (AC-R4d) |
 | F14 | **`extraKnownMarketplaces`의 정규 source 형태**: 로컬 디렉터리 `{"source":{"source":"directory","path":"<경로>"}}`, GitHub `{"source":{"source":"github","repo":"owner/repo"}}`. CLI(`claude plugin marketplace add`)가 디렉터리 소스를 기록할 때는 **절대경로**를 쓴다 — 커밋 값으로 부적합 | settings 기록값 직접 확인 | R4 — 배포용 커밋 값은 **github 형태**(`{"source":{"source":"github","repo":"sotthang/so-adk"}}`) 확정 |
+| F15 | `claude --plugin-dir`로 (a) 플러그인 2개 동시 로드, (b) `settings.json` `"agent"` 키에 의한 메인 스레드 교체, (c) `hooks/hooks.json` 훅의 실제 발동이 모두 가능하다 | **양성** | scratchpad에 플러그인 A(에이전트+PostToolUse 훅)·B(`"agent"` 키) 구성 후 `claude --plugin-dir A --plugin-dir B -p ...` 실행 — 응답이 B의 에이전트 이름을 반환, 파일 쓰기 시 A의 훅이 로그에 `${CLAUDE_PLUGIN_ROOT}`를 plugin-a 경로로 기록. 단독 로드도 동작. 교차 플러그인 플레인 이름 디스패치 재확인 | **R11 공백기 봉쇄 성립** — C1 착수 전제 조건 충족 |
+| F16 | C1(`git mv` 이관) 직후 run-checks의 FAIL 집합이 설계 예측(6종)과 일치한다 | **음성** | 저장소 사본에서 `git mv` 4건 수행 후 실행 → `17 passed, 2 failed, 5 skipped`. 실제 FAIL은 `check_settings_json_valid`·`check_hook_exists_executable` 2종뿐이고, 훅 검사 4종은 `skip` 가드가 선행해 **SKIP**으로 떨어짐. rename 순도는 확인됨(`--find-renames`로 R100 외 0줄) | **`.arch.md` §5 C1 예측 정정** — PR 본문·AC-R7a 기준선을 "FAIL 2종 + SKIP 4종"으로 기록 |
+| F17 | `claude plugin install --scope project`가 이미 커밋된 `.claude/settings.json`을 변형하지 않는다(멱등) | **양성** | 픽스처에서 두 키가 든 settings.json을 커밋한 뒤 동일 install 재실행 → `already installed` 출력, `git diff` 빈 출력, sha256 동일, `jq keys` == `["enabledPlugins","extraKnownMarketplaces"]` | AC-R4c와 온보딩 절차 무충돌 확인 |
+| F18 | (부수 관찰) `--scope project` 설치라도 사용자 전역 캐시 `~/.claude/plugins/`에는 기록이 남는다 | **양성** | `known_marketplaces.json`·`installed_plugins.json`에 항목 추가됨(후자는 `scope:"project"`+`projectPath` 포함). 반면 `~/.claude/settings.json` 자체는 무변경 | **R8 온보딩 문서에 caveat 기재** — project 스코프는 *활성화 범위*의 격리이지 설치 흔적의 격리가 아니다 |
+| F19 | 마켓플레이스 이름 `so-adk`가 project 설정(github 소스)과 user 설정(디렉터리 소스)에 동시에 존재할 수 있고, 이때 **user 설정이 우선한다** | **양성** | 커밋된 project `.claude/settings.json`이 `so-adk`→github을 선언한 상태에서 `claude plugin marketplace add /Users/hsso/Develop/so-adk` 실행 → user 설정에 `so-adk`→`{"source":"directory",...}` 기록되고 `claude plugin marketplace list`가 **Directory**로 표시. project 파일은 무변경 | R8 온보딩 — 개발자가 같은 이름으로 로컬 소스를 덮어쓸 수 있음 |
+| F20 | **`plugin install`은 디렉터리 소스여도 캐시로 복사하며, 로컬 편집이 설치본에 반영되지 않는다** | **양성(문제 확인)** | `--scope local` 설치 후 `installed_plugins.json`의 `installPath`가 `~/.claude/plugins/cache/so-adk/so-adk-core/1.0.0`. 작업 디렉터리의 `plugins/so-adk-core/agents/so-planner.md`에 sentinel을 추가한 뒤 대조 → 작업본 1건, **캐시본 0건** | **I-1의 결정적 근거** — github 소스만의 문제가 아니라 `install` 행위 전반의 성질이다. 개발자는 반드시 `--plugin-dir`을 써야 한다(편의가 아니라 정확성 문제). R8에 역할축으로 명시 |
+| F21 | (위험) **`claude plugin marketplace remove <name>`이 커밋된 project `.claude/settings.json`의 `extraKnownMarketplaces`·`enabledPlugins`를 비운다** | **양성(위험 확인)** | user 설정에 추가했던 `so-adk` 마켓플레이스를 remove한 결과, project 파일의 두 키가 `{}`로 초기화되어 `git diff`가 발생하고 run-checks가 38/0 → **37/1**로 떨어짐. `git checkout -- .claude/settings.json`으로 복구 확인 | **R8 README에 경고 필수** — 기여자가 무심코 실행하면 저장소 설정이 조용히 파괴된다. 복구법도 함께 기재 |
+| F22 | **AC-R2c 스모크 통과** — `--plugin-dir` 단독 로드에서 (a) `skills:` 필드가 플레인 이름으로 프리로드되고, (b) `${CLAUDE_PLUGIN_ROOT}` 훅이 실제 발동한다 | **양성** | (a) `so-adk-core:so-planner` 서브에이전트가 **0 tool uses**로 so-foundation·so-spec-format 본문을 인용 — 파일을 읽지 않고 답했으므로 프리로드 확정(F4 재확인). 선언한 2개만 로드되고 나머지 6개는 목록만 노출. (b) PostToolUse: lint 실패를 심은 픽스처에서 Edit 직후 훅이 exit 2로 차단하고 stderr가 Claude에 피드백됨(F5 재확인). (c) SessionStart: 세션 시작 시 미완료 SPEC 재개 안내가 additionalContext로 주입됨 | AC-R2c 충족. C6 `Smoke-Verified` trailer 근거 |
+| F23 | **AC-R3e 스모크 통과** — 플러그인 2개 동시 `--plugin-dir` 로드에서 메인 스레드 교체·CLAUDE.md 공존·교차 플러그인 디스패치가 모두 동작한다 | **양성** | 전역 CLAUDE.md만 있는 스크래치 프로젝트에서: (1) "도움말" → so-orchestrator의 Help Guide 출력(F1 재확인), (2) 전역 CLAUDE.md의 COMMIT DISCIPLINE·TDD METHODOLOGY 섹션을 원문 인용(F2 재확인 — BLOCKER 1 회귀 없음), (3) "로그인 기능 계획 세워줘" → 오케스트레이터가 `[1/7] Planner Agent 호출 중` 배너와 함께 `so-adk-core:so-planner`를 Agent 툴로 실호출(F11 재확인 — C-1 회귀 없음) | AC-R3e 충족. C6 `Smoke-Verified` trailer 근거 |
+| F24 | (별건 결함) **`session-start-resume.sh`의 글롭 `specs/SPEC-*.md`가 SPEC 본문뿐 아니라 동반 문서(`.arch.md`·`.review-v{N}.md`)까지 잡는다** | **양성(결함 확인)** | F22 (c) 관측 중 발견. 동반 문서는 Status 라인이 없어 `(unknown)`으로 떨어지고, `case` 문이 `Done` 외 전부를 pending 처리 → 실제 미완료 1건(SPEC-001)이 노이즈 4건에 묻히고 **Done인 SPEC-002의 동반 문서 2건이 진행 중으로 표시**됨 | **본 SPEC 범위 밖** — Out of Scope의 "훅 스크립트 내부 로직 무수정"에 해당하고 전환 이전부터 있던 결함이다(C1은 `git mv` 100% rename). 후속 SPEC 소관. `.review-v{N}.md`는 C-6 관행의 산물이라 앞으로 계속 늘어난다 |
+
 
 ## Requirements
 
@@ -151,7 +162,7 @@ scratchpad에 스켈레톤 플러그인 2개 + 로컬 마켓플레이스를 구�
 - `install.ps1`도 동일 동작으로 갱신하되 **best-effort + 수동 검증**으로 한다(Out of Scope 참조). **단, ps1의 `--migrate` 경로 출력에 "이 스크립트는 자동 테스트가 없는 베타입니다 — 실행 전 `--dry-run`으로 대상을 확인하고 수동 검증하세요" 경고를 포함한다** (C-8 — 파괴적 스크립트를 AC 없이 두는 데 대한 최소 방어).
 - curl 재실행이 기존 사용자의 유일한 업데이트 경로였으므로, 기존 URL(`.../main/install.sh`)은 그대로 이 마이그레이션 래퍼를 서빙한다.
 
-#### R7 — 검증 체계 편입: 기존 15개 검사 전수 매핑 + 신규 계약 검사 (MAJOR 7 대응)
+#### R7 — 검증 체계 편입: 기존 **24개** 검사 전수 매핑 + 신규 계약 검사 (MAJOR 7 대응)
 
 - **검사 신설의 실제 명분**: 플러그인은 디렉터리 통째 배포이므로 "install.sh 나열 누락" 위협 자체는 소멸한다. 신설 파일-참조 일치성 검사가 실제로 방어하는 것은: (1) 오케스트레이터 본문의 에이전트 이름 오타 및 rename 후 미갱신, (2) **오케스트레이터 플러그인이 core 플러그인의 에이전트를 참조하는데 plugin.json에 의존성 필드가 없어 이 결합이 어디에도 선언되지 않는다는 사실 — 이 검사가 두 플러그인을 잇는 유일한 기계적 계약이다.**
 - **파일-참조 일치성 검사 (양방향)**:
@@ -160,7 +171,7 @@ scratchpad에 스켈레톤 플러그인 2개 + 로컬 마켓플레이스를 구�
 - `claude plugin validate ./plugins/so-adk-core`와 `claude plugin validate ./plugins/so-adk-orchestrator` 및 마켓플레이스 루트 validate를 추가한다(`claude` CLI가 PATH에 없으면 SKIP).
 - 훅 검사: `hooks.json`이 유효 JSON이고 `${CLAUDE_PLUGIN_ROOT}` 경로를 사용하며, 참조 스크립트 2개가 존재+실행 가능한지 검증.
 - `claude plugin eval` 활용 가능성을 검토해 결과를 테스트 주석 또는 README 개발 섹션에 기재한다(도입은 필수 아님).
-- **기존 15개 검사 전수 매핑표** (`tests/run-checks.sh` 기준 — 이 표대로 갱신/대체/삭제한다):
+- **기존 24개 검사 전수 매핑표** — SPEC-002 병합으로 체크가 15 → **24개**가 되었다. **권위 있는 매핑표는 `specs/SPEC-001-plugin-migration.arch.md` §6에 있으며**, Architect가 24개 기준으로 전면 재작성하면서 실측으로 확인했다: SPEC-002가 도입한 리졸버(`resolve_agents_dir`/`resolve_orchestrator_file`) 덕분에 **24종 중 11종은 코드 무수정으로 이관된다.** 아래 표는 v3 시점의 15개 기준 원본이며 참고용으로 남긴다:
 
   | # | 기존 검사 | 처분 | 내용 |
   | - | -------- | ---- | ---- |
@@ -273,46 +284,70 @@ scratchpad에 스켈레톤 플러그인 2개 + 로컬 마켓플레이스를 구�
   - 플러그인 간 의존성 필드 부재 — orchestrator 단독 설치 시 core 에이전트 부재로 라우팅 실패. 방어: 문서 경고(R3, R8) + **R7 파일-참조 일치성 검사가 두 플러그인을 잇는 유일한 기계적 계약**.
   - CLI 업데이트에 따른 `"agent"` 키/CLAUDE.md 공존/교차 플러그인 디스패치(F11) 동작의 회귀 가능성 — AC-R3e 수동 스모크를 릴리스 전 반복 수행으로 방어.
   - F13류 "조용한 실패"의 다른 변종(스키마 오류가 에러 없이 무시되는 CLI 동작) — AC-R4d 스키마 검사 + AC-R3e 실동작 스모크의 이중 방어.
+  - **(범위 밖 처분 1) `session-start-resume.sh` 글롭 과매칭(F24)** — 고치지 않았다. Out of Scope의 "훅 스크립트 내부 로직 무수정"에 걸리고 전환 이전부터 있던 결함이다. 후속 SPEC으로 분리한다.
+  - **(범위 밖 처분 2) C4 마이그레이션 래퍼의 `settings.json` 소실 버그를 커밋 `84d274a`에서 수정** — 본 SPEC은 "동작 변경 일절 금지"이나, 이는 신규 기능이 아니라 **C4에서 새로 작성된 래퍼가 사용자 설정 파일을 파괴하던 것**이다(`.hooks`에 PostToolUse/SessionStart 중 한쪽만 있으면 jq의 `// empty` 빈 스트림으로 출력이 0개가 되고, 0바이트 파일을 `jq .`가 유효로 통과시켜 원본을 빈 파일로 덮어썼다 — AC-R6a의 "타 키 보존"이 이 분기에서 깨져 있었다). `curl | bash`로 배포되는 스크립트를 그대로 두는 편이 더 위험하다고 판단해 RED 테스트 2종(`check_migrate_partial_hooks_preserved`·`check_migrate_preserves_file_mode`) 선행 후 수정했다. 검사 38 → 40 passed.
 
 ## Acceptance Criteria
 
-- [ ] **AC-R1a**: Given 이관 브랜치, When `git diff --find-renames`로 **이동 커밋**(커밋 1)을 확인하면, Then 에이전트 16개·스킬 8개·훅 2개·오케스트레이터 1개가 모두 rename으로 나타나고, **오케스트레이터를 포함한 전 파일이 유사도 100%**(본문 무수정)이며, 이동 커밋에는 rename 외의 추가/삭제/수정이 없다. (frontmatter 추가는 커밋 3의 diff에서만 나타난다 — C-5)
-- [ ] **AC-R1b**: Given 이관 완료 저장소, When `ls plugins/so-adk-core/agents/*.md | wc -l`을 실행하면, Then 정확히 15가 출력되고 `plugins/so-adk-core/skills/*/SKILL.md`는 정확히 8개다.
-- [ ] **AC-R2a**: Given `plugins/so-adk-core`, When `claude plugin validate ./plugins/so-adk-core`를 실행하면, Then exit 0이다.
-- [ ] **AC-R2b**: Given `hooks.json`, When `jq`로 파싱하면, Then 유효 JSON이며 SessionStart·PostToolUse(matcher `Edit|Write|MultiEdit`) 두 이벤트가 존재하고 모든 command 경로가 `${CLAUDE_PLUGIN_ROOT}`로 시작하며, 참조된 스크립트 2개가 존재하고 실행 가능하다.
-- [ ] **AC-R2c** (수동 스모크): Given `claude --plugin-dir ./plugins/so-adk-core`로 연 세션, When so-planner 에이전트를 호출하면, Then so-foundation·so-spec-format 스킬이 플레인 이름으로 정상 프리로드된다(1회 수행 + Smoke-Verified trailer·PR 본문 기록 — R11-e).
-- [ ] **AC-R2d**: Given `plugins/so-adk-core/agents/*.md`, When frontmatter의 `skills:` 값을 grep하면, Then 네임스페이스 접두(`so-adk-core:`) 없이 플레인 이름만 존재한다.
-- [ ] **AC-R3a**: Given `plugins/so-adk-orchestrator`, When `claude plugin validate`를 실행하면, Then exit 0이다.
-- [ ] **AC-R3b**: Given orchestrator의 `settings.json`, When `jq -r '.agent'`를 실행하면, Then `so-orchestrator`가 출력된다.
-- [ ] **AC-R3c**: Given `agents/so-orchestrator.md`, When frontmatter를 제외한 본문을 기존 `.claude/so-orchestrator.md`와 diff하면, Then 차이는 R5·R10 치환분뿐이다.
-- [ ] **AC-R3d**: Given `agents/so-orchestrator.md`의 frontmatter, When 키 목록을 검사하면, Then `name`·`description`은 존재하고 `model`·`tools` 키는 존재하지 않는다.
-- [ ] **AC-R3e** (수동 스모크, 릴리스 전 필수): Given 두 플러그인을 활성화한 스크래치 프로젝트(전역 CLAUDE.md 지침이 있는 환경), When 새 세션을 열면, Then 다음 3종을 모두 확인한다: (1) "도움말" 입력 시 메인 스레드가 so-orchestrator로 교체되어 Help Guide가 출력됨(라우팅 스모크), (2) 전역 CLAUDE.md의 지침을 인지하고 있음을 질의로 확인(CLAUDE.md 공존 — F2 재검증), (3) **라우팅 발화(예: "로그인 기능 계획 세워줘")로 orchestrator가 core 플러그인의 `so-planner`를 실제 Agent 툴 호출하여 교차 플러그인 디스패치가 동작함을 확인(F11 재검증 — C-1 회귀 방지)**. 결과를 Smoke-Verified trailer(R11-e)와 PR 본문에 기록한다.
-- [ ] **AC-R4a**: Given repo 루트, When `jq`로 `.claude-plugin/marketplace.json`을 파싱하면, Then 유효 JSON이며 plugins 배열에 `so-adk-core`·`so-adk-orchestrator` 두 엔트리가 각각 `./plugins/` 하위 source와 함께 존재한다.
-- [ ] **AC-R4b**: Given 이관 완료 저장소, When `git ls-files`와 `jq`로 `.claude/settings.json`을 검사하면, Then 파일이 저장소에 커밋되어 있고, `extraKnownMarketplaces`의 so-adk 엔트리 source가 **github 정규 형태**(`.source.source == "github"`, `.source.repo == "sotthang/so-adk"` — F14, 절대경로 directory 형태 금지)이며, `enabledPlugins`에 두 플러그인 키(`<plugin>@<marketplace>` 형식, 값 `true`)가 존재한다.
-- [ ] **AC-R4c** (`tests/run-checks.sh` 포함): Given 커밋된 `.claude/settings.json`, When `jq -r 'keys[]'`를 실행하면, Then 출력이 **정확히 `enabledPlugins`·`extraKnownMarketplaces` 두 키뿐**이다(`permissions`·`env`·`model`·`apiKeyHelper` 등 다른 키의 유입을 게이트에서 차단 — 내용 경계).
-- [ ] **AC-R4d** (`tests/run-checks.sh` 포함): Given 커밋된 `.claude/settings.json`, When `extraKnownMarketplaces`의 source 스키마를 jq로 검증하면, Then F14 정규 형태(`source.source`가 `github`이고 `source.repo` 존재)에 부합한다 — F13의 "에러 없이 조용히 disabled" 함정을 정적으로 차단.
-- [ ] **AC-R5a**: Given `plugins/` 디렉터리, When 다음 2종 패턴으로 스킬 호출명을 검색하면 — (1) 슬래시형 `grep -rE '(^|[^:a-z/])/(dev|plan|pr|refactor)([^a-z:/]|$)'` (**M-1** — 제외 문자군에 `/`를 포함해 `/dev/null`·`2>/dev/null`·`&>/dev/null` 오탐을 배제한다. 이 보정이 없으면 훅 스크립트 7건·에이전트 2건이 영구 오탐되어 본 AC와 AC-R7a가 충족 불가가 된다), (2) **무슬래시 스킬 언급형** `` grep -rE '(^|[^:[:alnum:]_-])`?(dev|plan|pr|refactor)`? skill' `` (C-4 — 백틱형 `` `pr` skill ``과 무백틱형 `pr skill` 모두 포착, 네임스페이스형 `` `so-adk-core:pr` skill ``은 콜론 선행으로 제외됨) — Then 구 호출명 참조가 0건이고 네임스페이스 형태만 존재한다. 검사 자가 검증: 이관 **전** 실물에 패턴 (1)을 적용하면 `.claude/agents/so-quality.md:3` **1건만** 검출되어야 하고(오탐 0건), 패턴 (2)를 적용하면 오케스트레이터 88·228·234·277행 **4건**이 검출되어야 한다. 본 AC는 `tests/run-checks.sh`에 포함되는 **자동 검사**다. (`specs/`와 README의 마이그레이션 대응표는 검색 대상이 아니다 — R5 범위 한정)
-- [ ] **AC-R5b**: Given `plugins/so-adk-core/skills/dev/SKILL.md`, When 내용을 검사하면, Then "pipeline defined in CLAUDE.md" 류의 CLAUDE.md 파이프라인 참조가 없고 오케스트레이터 플러그인 기준 서술이 존재한다.
-- [ ] **AC-R6a**: Given 레거시 설치를 재현한 임시 디렉터리(`CLAUDE.md`에 import 라인 + 사용자 고유 내용, `.claude/agents/`에 SO-ADK 에이전트 16개 + 사용자 작성 `my-agent.md`, SO-ADK 스킬·훅, 훅이 병합된 `settings.json`), When `install.sh --migrate`를 실행하면, Then SO-ADK 소유 파일이 `.claude/.so-adk-backup-<timestamp>/`로 **이동**(삭제 아님)되고, `my-agent.md`·사용자 CLAUDE.md 내용·settings.json의 타 키는 보존되며, CLAUDE.md는 import 라인만 사라지고 파일 자체는 (비더라도) 삭제되지 않는다.
-- [ ] **AC-R6b**: Given 새 `install.sh`, When 내용을 검사하면, Then `curl`로 에이전트/스킬 파일을 다운로드하는 코드와 `CLAUDE.md`에 append하는 코드가 존재하지 않고, 백업 대상이 글롭이 아닌 고정 목록으로 정의되어 있으며, **스킬 디렉터리와 에이전트 파일 양쪽 모두에 마커 grep 가드가 존재한다**(대칭 — R6).
-- [ ] **AC-R6c**: Given 레거시 설치가 없는 빈 임시 디렉터리, When `install.sh --migrate`를 실행하면, Then 어떤 파일도 생성·수정하지 않고 플러그인 설치 안내만 출력하며 exit 0이다.
-- [ ] **AC-R6d**: Given 레거시 설치를 재현한 임시 디렉터리, When 플래그 없이 `install.sh`를 실행하면, Then 어떤 파일도 변경되지 않고 레거시 감지 결과와 `--migrate` 안내만 출력된다(옵트인 검증).
-- [ ] **AC-R6e**: Given 레거시 설치를 재현한 임시 디렉터리, When `install.sh --dry-run`을 실행하면, Then 백업·제거 예정 경로 목록이 출력되고 어떤 파일도 변경되지 않는다.
-- [ ] **AC-R6f**: Given 사용자가 본문을 수정한 SO-ADK 에이전트(`so-planner.md` 변경본)가 있는 레거시 디렉터리, When `install.sh --migrate`를 실행하면, Then 수정본이 백업 디렉터리에 그대로 보존된다.
-- [ ] **AC-R6g**: Given jq를 사용할 수 없는 환경(PATH 조작)의 레거시 디렉터리, When `install.sh --migrate`를 실행하면, Then 훅 스크립트가 이동되지 않고(고아 훅 방지), 수동 제거 절차가 출력되며 exit 비0이다.
-- [ ] **AC-R6h**: Given 사용자 `.claude/settings.json`이 **유효 JSON이 아닌**(파싱 실패) 레거시 디렉터리, When `install.sh --migrate`를 실행하면, Then 훅 엔트리 제거 실패가 감지되어 훅 스크립트가 이동되지 않고, 수동 제거 절차가 출력되며 exit 비0이다(고아 훅 방지의 실제 최빈 실패 경로 — R6 순서 강제 검증).
-- [ ] **AC-R7a**: Given 이관 완료 저장소, When `tests/run-checks.sh`를 실행하면, Then 전체 PASS(FAIL 0)이다. 기준선: **이관 전 통과하던 검사 전부**(현재도 실패 중인 `check_settings_json_valid` 제외)의 갱신/대체본 + R7 신규 검사(AC-R4c·AC-R4d 포함)가 모두 포함된다. `claude` CLI 존재 시 plugin validate 검사가 포함된다. AC-R12a(태그 생성)는 포함되지 않는다(C-9).
-- [ ] **AC-R7b**: Given 저장소의 **임시 사본**(작업 트리 오염 방지), When 오케스트레이터 본문이 **실제 참조하는 에이전트**(예: `so-planner.md`)를 `plugins/so-adk-core/agents/`에서 제거하고 테스트를 실행하면, Then 파일-참조 일치성 검사가 FAIL한다.
-- [ ] **AC-R7c**: Given 저장소의 임시 사본, When 오케스트레이터 본문에서 참조되지 않는 임의 에이전트 파일(`so-orphan.md`)을 `plugins/so-adk-core/agents/`에 추가하고 테스트를 실행하면, Then 역방향(고아 에이전트) 검사가 FAIL한다.
-- [ ] **AC-R7d**: Given `tests/run-checks.sh`, When 검사 함수 목록을 grep하면, Then R7 매핑표의 "갱신/대체" 결과 검사가 모두 존재하고, "삭제/대체" 처분된 구 검사명(`check_new_agents_in_install`, `check_install_calls_merge_in_normal_path` 등)은 존재하지 않는다.
-- [ ] **AC-R8**: Given `README.md`와 `README.ko.md`, When 내용을 검사하면, Then (1) 마켓플레이스 추가 + 플러그인 설치 절차, (2) **모든 설치 예시 명령에 명시적 스코프 플래그(`--scope`)가 붙어 있음** (C-3), (3) orchestrator의 Project/Local 스코프 전용 경고, (4) core의 User 스코프 훅 전역 발동 경고, (5) 구→신 스킬 이름 대응표 + breaking change 명시, (6) 기존 사용자 마이그레이션 섹션(`--dry-run`/`--migrate`, 백업 위치, specs/archive 소멸 안내), (7) `pre-plugin` 태그 기반 복구 절차, (8) 개발 섹션 — 커밋된 settings.json은 "등록만, 설치 아님"(F12) + 기여자 명시적 설치 1회 + `--plugin-dir` 로드 방법 + "개인 설정은 `.claude/settings.local.json`에" 안내가 모두 존재한다.
-- [ ] **AC-R9**: Given 이관 브랜치의 최종 커밋, When `.claude/agents`·`.claude/skills`·`.claude/hooks`·`.claude/so-orchestrator.md` 경로를 확인하면, Then 존재하지 않고, 저장소 `CLAUDE.md`에 `@.claude/so-orchestrator.md` 라인이 없으며, **`CLAUDE.md`는 빈 파일이 아니라 dogfooding 안내문(자체 플러그인 사용 사실 + 온보딩/`--plugin-dir` 안내)을 담고 있다** (C-7).
-- [ ] **AC-R10**: Given `plugins/so-adk-orchestrator/agents/so-orchestrator.md`, When Step 2-B 섹션을 검사하면, Then `curl ... install.sh` 명령이 없고 플러그인 업데이트 안내가 존재한다.
-- [ ] **AC-R11a**: Given 이관 브랜치, When `git tag --list pre-plugin`과 `git merge-base`를 확인하면, Then `pre-plugin` 태그가 존재하고 이관 착수 직전(레거시 완전) 커밋을 가리킨다.
-- [ ] **AC-R11b**: Given 이관 브랜치의 커밋 히스토리, When 커밋 순서를 검사하면, Then (1) 레거시 제거(R9) 커밋이 브랜치의 최종 커밋이고, (2) **최종 커밋의 직전 커밋 메시지에 trailer `Smoke-Verified: AC-R2c,AC-R3e`가 존재한다** — `git log -1 <최종 커밋>^ --format=%B | grep -F 'Smoke-Verified:'`로 기계 검증(R11-e — v2의 "PR 본문 서술 순서" 검증은 선후 증명 불가로 폐기).
-- [ ] **AC-R11c** (C-10): Given 이관 PR, When `gh pr view --json headRefName,baseRefName`을 확인하면, Then head는 `main`이 아닌 feature 브랜치이고 base는 `main`이다(R11-b 검증).
-- [ ] **AC-R12a** (릴리스 시 1회 수행 — `tests/run-checks.sh` 미포함, C-9): Given 이관 완료 저장소, When 릴리스 시점에 `claude plugin tag ./plugins/so-adk-core`를 실행하면, Then plugin.json과 marketplace 엔트리의 버전 일치가 검증되고 `so-adk-core--v1.0.0` 태그가 생성된다(orchestrator 동일). 실제 태그를 만드는 부작용이 있으므로 자동 테스트에 넣지 않는다.
-- [ ] **AC-R12b**: Given `README.md`, When 개발 섹션을 검사하면, Then 릴리스 절차(버전 범프 → `claude plugin tag` → push)가 문서화되어 있다.
+- [x] **AC-R1a**: Given 이관 브랜치, When `git diff --find-renames`로 **이동 커밋**(커밋 1)을 확인하면, Then 에이전트 16개·스킬 8개·훅 2개·오케스트레이터 1개가 모두 rename으로 나타나고, **오케스트레이터를 포함한 전 파일이 유사도 100%**(본문 무수정)이며, 이동 커밋에는 rename 외의 추가/삭제/수정이 없다. (frontmatter 추가는 커밋 3의 diff에서만 나타난다 — C-5)
+- [x] **AC-R1b**: Given 이관 완료 저장소, When `ls plugins/so-adk-core/agents/*.md | wc -l`을 실행하면, Then 정확히 **16**이 출력되고(so-spike 포함 — SPEC-002 병합 반영) `plugins/so-adk-core/skills/*/SKILL.md`는 정확히 8개다.
+- [x] **AC-R2a**: Given `plugins/so-adk-core`, When `claude plugin validate ./plugins/so-adk-core`를 실행하면, Then exit 0이다.
+- [x] **AC-R2b**: Given `hooks.json`, When `jq`로 파싱하면, Then 유효 JSON이며 SessionStart·PostToolUse(matcher `Edit|Write|MultiEdit`) 두 이벤트가 존재하고 모든 command 경로가 `${CLAUDE_PLUGIN_ROOT}`로 시작하며, 참조된 스크립트 2개가 존재하고 실행 가능하다.
+- [x] **AC-R2c** (수동 스모크 — F22 통과): Given `claude --plugin-dir ./plugins/so-adk-core`로 연 세션, When so-planner 에이전트를 호출하면, Then so-foundation·so-spec-format 스킬이 플레인 이름으로 정상 프리로드된다(1회 수행 + Smoke-Verified trailer·PR 본문 기록 — R11-e).
+- [x] **AC-R2d**: Given `plugins/so-adk-core/agents/*.md`, When frontmatter의 `skills:` 값을 grep하면, Then 네임스페이스 접두(`so-adk-core:`) 없이 플레인 이름만 존재한다.
+- [x] **AC-R3a**: Given `plugins/so-adk-orchestrator`, When `claude plugin validate`를 실행하면, Then exit 0이다.
+- [x] **AC-R3b**: Given orchestrator의 `settings.json`, When `jq -r '.agent'`를 실행하면, Then `so-orchestrator`가 출력된다.
+- [x] **AC-R3c**: Given `agents/so-orchestrator.md`, When frontmatter를 제외한 본문을 기존 `.claude/so-orchestrator.md`와 diff하면, Then 차이는 R5·R10 치환분뿐이다.
+- [x] **AC-R3d**: Given `agents/so-orchestrator.md`의 frontmatter, When 키 목록을 검사하면, Then `name`·`description`은 존재하고 `model`·`tools` 키는 존재하지 않는다.
+- [x] **AC-R3e** (수동 스모크, 릴리스 전 필수 — F23 통과): Given 두 플러그인을 활성화한 스크래치 프로젝트(전역 CLAUDE.md 지침이 있는 환경), When 새 세션을 열면, Then 다음 3종을 모두 확인한다: (1) "도움말" 입력 시 메인 스레드가 so-orchestrator로 교체되어 Help Guide가 출력됨(라우팅 스모크), (2) 전역 CLAUDE.md의 지침을 인지하고 있음을 질의로 확인(CLAUDE.md 공존 — F2 재검증), (3) **라우팅 발화(예: "로그인 기능 계획 세워줘")로 orchestrator가 core 플러그인의 `so-planner`를 실제 Agent 툴 호출하여 교차 플러그인 디스패치가 동작함을 확인(F11 재검증 — C-1 회귀 방지)**. 결과를 Smoke-Verified trailer(R11-e)와 PR 본문에 기록한다.
+- [x] **AC-R4a**: Given repo 루트, When `jq`로 `.claude-plugin/marketplace.json`을 파싱하면, Then 유효 JSON이며 plugins 배열에 `so-adk-core`·`so-adk-orchestrator` 두 엔트리가 각각 `./plugins/` 하위 source와 함께 존재한다.
+- [x] **AC-R4b**: Given 이관 완료 저장소, When `git ls-files`와 `jq`로 `.claude/settings.json`을 검사하면, Then 파일이 저장소에 커밋되어 있고, `extraKnownMarketplaces`의 so-adk 엔트리 source가 **github 정규 형태**(`.source.source == "github"`, `.source.repo == "sotthang/so-adk"` — F14, 절대경로 directory 형태 금지)이며, `enabledPlugins`에 두 플러그인 키(`<plugin>@<marketplace>` 형식, 값 `true`)가 존재한다.
+- [x] **AC-R4c** (`tests/run-checks.sh` 포함): Given 커밋된 `.claude/settings.json`, When `jq -r 'keys[]'`를 실행하면, Then 출력이 **정확히 `enabledPlugins`·`extraKnownMarketplaces` 두 키뿐**이다(`permissions`·`env`·`model`·`apiKeyHelper` 등 다른 키의 유입을 게이트에서 차단 — 내용 경계).
+- [x] **AC-R4d** (`tests/run-checks.sh` 포함): Given 커밋된 `.claude/settings.json`, When `extraKnownMarketplaces`의 source 스키마를 jq로 검증하면, Then F14 정규 형태(`source.source`가 `github`이고 `source.repo` 존재)에 부합한다 — F13의 "에러 없이 조용히 disabled" 함정을 정적으로 차단.
+- [x] **AC-R5a**: Given `plugins/` 디렉터리, When 다음 2종 패턴으로 스킬 호출명을 검색하면 — (1) 슬래시형 `grep -rE '(^|[^:a-z/])/(dev|plan|pr|refactor)([^a-z:/]|$)'` (**M-1** — 제외 문자군에 `/`를 포함해 `/dev/null`·`2>/dev/null`·`&>/dev/null` 오탐을 배제한다. 이 보정이 없으면 훅 스크립트 7건·에이전트 2건이 영구 오탐되어 본 AC와 AC-R7a가 충족 불가가 된다), (2) **무슬래시 스킬 언급형** `` grep -rE '(^|[^:[:alnum:]_-])`?(dev|plan|pr|refactor)`? skill' `` (C-4 — 백틱형 `` `pr` skill ``과 무백틱형 `pr skill` 모두 포착, 네임스페이스형 `` `so-adk-core:pr` skill ``은 콜론 선행으로 제외됨) — Then 구 호출명 참조가 0건이고 네임스페이스 형태만 존재한다. 검사 자가 검증: 이관 **전** 실물에 패턴 (1)을 적용하면 `.claude/agents/so-quality.md:3` **1건만** 검출되어야 하고(오탐 0건), 패턴 (2)를 적용하면 오케스트레이터 88·228·234·277행 **4건**이 검출되어야 한다. 본 AC는 `tests/run-checks.sh`에 포함되는 **자동 검사**다. (`specs/`와 README의 마이그레이션 대응표는 검색 대상이 아니다 — R5 범위 한정)
+- [x] **AC-R5b**: Given `plugins/so-adk-core/skills/dev/SKILL.md`, When 내용을 검사하면, Then "pipeline defined in CLAUDE.md" 류의 CLAUDE.md 파이프라인 참조가 없고 오케스트레이터 플러그인 기준 서술이 존재한다.
+- [x] **AC-R6a**: Given 레거시 설치를 재현한 임시 디렉터리(`CLAUDE.md`에 import 라인 + 사용자 고유 내용, `.claude/agents/`에 SO-ADK 에이전트 16개 + 사용자 작성 `my-agent.md`, SO-ADK 스킬·훅, 훅이 병합된 `settings.json`), When `install.sh --migrate`를 실행하면, Then SO-ADK 소유 파일이 `.claude/.so-adk-backup-<timestamp>/`로 **이동**(삭제 아님)되고, `my-agent.md`·사용자 CLAUDE.md 내용·settings.json의 타 키는 보존되며, CLAUDE.md는 import 라인만 사라지고 파일 자체는 (비더라도) 삭제되지 않는다.
+- [x] **AC-R6b**: Given 새 `install.sh`, When 내용을 검사하면, Then `curl`로 에이전트/스킬 파일을 다운로드하는 코드와 `CLAUDE.md`에 append하는 코드가 존재하지 않고, 백업 대상이 글롭이 아닌 고정 목록으로 정의되어 있으며, **스킬 디렉터리와 에이전트 파일 양쪽 모두에 마커 grep 가드가 존재한다**(대칭 — R6).
+- [x] **AC-R6c**: Given 레거시 설치가 없는 빈 임시 디렉터리, When `install.sh --migrate`를 실행하면, Then 어떤 파일도 생성·수정하지 않고 플러그인 설치 안내만 출력하며 exit 0이다.
+- [x] **AC-R6d**: Given 레거시 설치를 재현한 임시 디렉터리, When 플래그 없이 `install.sh`를 실행하면, Then 어떤 파일도 변경되지 않고 레거시 감지 결과와 `--migrate` 안내만 출력된다(옵트인 검증).
+- [x] **AC-R6e**: Given 레거시 설치를 재현한 임시 디렉터리, When `install.sh --dry-run`을 실행하면, Then 백업·제거 예정 경로 목록이 출력되고 어떤 파일도 변경되지 않는다.
+- [x] **AC-R6f**: Given 사용자가 본문을 수정한 SO-ADK 에이전트(`so-planner.md` 변경본)가 있는 레거시 디렉터리, When `install.sh --migrate`를 실행하면, Then 수정본이 백업 디렉터리에 그대로 보존된다.
+- [x] **AC-R6g**: Given jq를 사용할 수 없는 환경(PATH 조작)의 레거시 디렉터리, When `install.sh --migrate`를 실행하면, Then 훅 스크립트가 이동되지 않고(고아 훅 방지), 수동 제거 절차가 출력되며 exit 비0이다.
+- [x] **AC-R6h**: Given 사용자 `.claude/settings.json`이 **유효 JSON이 아닌**(파싱 실패) 레거시 디렉터리, When `install.sh --migrate`를 실행하면, Then 훅 엔트리 제거 실패가 감지되어 훅 스크립트가 이동되지 않고, 수동 제거 절차가 출력되며 exit 비0이다(고아 훅 방지의 실제 최빈 실패 경로 — R6 순서 강제 검증).
+- [x] **AC-R7a**: Given 이관 완료 저장소, When `tests/run-checks.sh`를 실행하면, Then 전체 PASS(FAIL 0)이다. 기준선: **이관 전 통과하던 검사 전부**(현재도 실패 중인 `check_settings_json_valid` 제외)의 갱신/대체본 + R7 신규 검사(AC-R4c·AC-R4d 포함)가 모두 포함된다. `claude` CLI 존재 시 plugin validate 검사가 포함된다. AC-R12a(태그 생성)는 포함되지 않는다(C-9).
+- [x] **AC-R7b**: Given 저장소의 **임시 사본**(작업 트리 오염 방지), When 오케스트레이터 본문이 **실제 참조하는 에이전트**(예: `so-planner.md`)를 `plugins/so-adk-core/agents/`에서 제거하고 테스트를 실행하면, Then 파일-참조 일치성 검사가 FAIL한다.
+- [x] **AC-R7c**: Given 저장소의 임시 사본, When 오케스트레이터 본문에서 참조되지 않는 임의 에이전트 파일(`so-orphan.md`)을 `plugins/so-adk-core/agents/`에 추가하고 테스트를 실행하면, Then 역방향(고아 에이전트) 검사가 FAIL한다.
+- [x] **AC-R7d**: Given `tests/run-checks.sh`, When 검사 함수 목록을 grep하면, Then R7 매핑표의 "갱신/대체" 결과 검사가 모두 존재하고, "삭제/대체" 처분된 구 검사명(`check_new_agents_in_install`, `check_install_calls_merge_in_normal_path` 등)은 존재하지 않는다.
+- [x] **AC-R8**: Given `README.md`와 `README.ko.md`, When 내용을 검사하면, Then (1) 마켓플레이스 추가 + 플러그인 설치 절차, (2) **모든 설치 예시 명령에 명시적 스코프 플래그(`--scope`)가 붙어 있음** (C-3), (3) orchestrator의 Project/Local 스코프 전용 경고, (4) core의 User 스코프 훅 전역 발동 경고, (5) 구→신 스킬 이름 대응표 + breaking change 명시, (6) 기존 사용자 마이그레이션 섹션(`--dry-run`/`--migrate`, 백업 위치, specs/archive 소멸 안내), (7) `pre-plugin` 태그 기반 복구 절차, (8) 개발 섹션 — 커밋된 settings.json은 "등록만, 설치 아님"(F12) + 기여자 명시적 설치 1회 + `--plugin-dir` 로드 방법 + "개인 설정은 `.claude/settings.local.json`에" 안내가 모두 존재한다.
+- [x] **AC-R9**: Given 이관 브랜치의 최종 커밋, When `.claude/agents`·`.claude/skills`·`.claude/hooks`·`.claude/so-orchestrator.md` 경로를 확인하면, Then 존재하지 않고, 저장소 `CLAUDE.md`에 `@.claude/so-orchestrator.md` 라인이 없으며, **`CLAUDE.md`는 빈 파일이 아니라 dogfooding 안내문(자체 플러그인 사용 사실 + 온보딩/`--plugin-dir` 안내)을 담고 있다** (C-7).
+- [x] **AC-R10**: Given `plugins/so-adk-orchestrator/agents/so-orchestrator.md`, When Step 2-B 섹션을 검사하면, Then `curl ... install.sh` 명령이 없고 플러그인 업데이트 안내가 존재한다.
+- [x] **AC-R11a**: Given 이관 브랜치, When `git tag --list pre-plugin`과 `git merge-base`를 확인하면, Then `pre-plugin` 태그가 존재하고 이관 착수 직전(레거시 완전) 커밋을 가리킨다.
+- [x] **AC-R11b**: Given 이관 브랜치의 커밋 히스토리, When 커밋 순서를 검사하면, Then (1) 레거시 제거(R9) 커밋이 브랜치의 최종 커밋이고, (2) **최종 커밋의 직전 커밋 메시지에 trailer `Smoke-Verified: AC-R2c,AC-R3e`가 존재한다** — `git log -1 <최종 커밋>^ --format=%B | grep -F 'Smoke-Verified:'`로 기계 검증(R11-e — v2의 "PR 본문 서술 순서" 검증은 선후 증명 불가로 폐기). **v3.4 각주**: C7(`a0948a6`) 이후 SPEC 문서 커밋 2건이 추가되어 C7은 브랜치의 물리적 최종 커밋이 아니게 되었다. 본 AC가 방어하려던 것은 "스모크 선언보다 레거시 제거가 앞서는 것"이며, 그 선후는 `a0948a6`와 그 부모 `de74b90` 사이에서 그대로 성립한다. 이후 얹힌 2건은 **코드 변경이 없는 문서 커밋**이다 — 조건 (1)의 실질은 "레거시 제거 이후 코드 변경 없음"으로 읽는다.
+- [ ] **AC-R11c** (C-10, **v3.4 문언 정정**): Given 이관 이력, When `git log --oneline main..feat/spec-001-plugin-migration`과 main의 머지 커밋을 확인하면, Then (1) 모든 이관 커밋이 `main`이 아닌 feature 브랜치에 있고, (2) main 반영이 **`--no-ff` 머지 커밋**으로 수행되었다. **원안 정정 사유**: 원안은 `gh pr view` 기반이었으나, 단독 소유 저장소에서 자기 PR을 자기가 머지하는 것은 형식이고 검증하려는 실질(R11-b — main에 중간 상태 미서빙)과 무관하다. 머지 커밋 요구는 유지한다 — R11-f 롤백 절차 `git revert -m 1 <merge-commit>`이 머지 커밋의 존재를 전제하므로, fast-forward 반영은 README에 기재한 롤백법을 거짓으로 만든다.
+- [ ] **AC-R12a** (**미충족: 릴리스 시점 절차** — 브랜치 완료 조건이 아니다. 릴리스 시 1회 수행 — `tests/run-checks.sh` 미포함, C-9): Given 이관 완료 저장소, When 릴리스 시점에 `claude plugin tag ./plugins/so-adk-core`를 실행하면, Then plugin.json과 marketplace 엔트리의 버전 일치가 검증되고 `so-adk-core--v1.0.0` 태그가 생성된다(orchestrator 동일). 실제 태그를 만드는 부작용이 있으므로 자동 테스트에 넣지 않는다.
+- [x] **AC-R12b**: Given `README.md`, When 개발 섹션을 검사하면, Then 릴리스 절차(버전 범프 → `claude plugin tag` → push)가 문서화되어 있다.
+
+### 검증 요약 (2026-08-21, 구현 완료 시점)
+
+- **자동 검증** — `bash tests/run-checks.sh` → **40 passed / 0 failed / 1 skipped**. `check_spike_in_install`의 SKIP 1건은 plugins 레이아웃 자체 SKIP 분기로, 설계가 의도한 영구 SKIP이다.
+- **수동 검증 8종** (run-checks 미포함):
+
+  | AC | 확인 방법 | 결과 |
+  | -- | --------- | ---- |
+  | AC-R1a | `git show --find-renames --name-status f9aded2` | 27개 파일 전부 `R100`, non-rename 변경 0줄, `0 insertions(+), 0 deletions(-)` |
+  | AC-R2d | 에이전트 16개의 `skills:` 값 grep | 플레인 이름 4종만(`so-context`·`so-foundation`·`so-spec-format`·`so-tdd-workflow`), `so-adk-core:` 접두 0건 |
+  | AC-R3c | `pre-plugin:.claude/so-orchestrator.md` ↔ 현행 본문(frontmatter 제외) diff | 차이는 R5 치환 4곳(`` `pr` skill `` → `` `so-adk-core:pr` skill ``)과 R10 Step 2-B 재작성뿐 |
+  | AC-R5b | `skills/dev/SKILL.md` | `CLAUDE.md` 참조 0건, "so-adk-orchestrator plugin's so-orchestrator agent" 기준 서술 존재 |
+  | AC-R7b | 저장소 임시 사본에서 `so-planner.md` 제거 후 실행 | `check_orchestrator_agent_refs_exist` **FAIL** (순방향 계약 성립) |
+  | AC-R7c | 저장소 임시 사본에 `so-orphan.md` 추가 후 실행 | `check_no_orphan_agents` **FAIL** (역방향 계약 성립). 두 변조 모두 작업 트리 무오염 |
+  | AC-R7d | 삭제 처분된 구 검사명 4종 grep | 전부 0건 |
+  | AC-R10 | Step 2-B 섹션 | `curl ... install.sh` 0건, `/plugin` 및 `claude plugin update` 안내 존재 |
+  | AC-R2c·AC-R3e | 실기기 스모크 | F22·F23 참조 |
+  | AC-R8 | README 2종 8항목 대조 | 전 항목 충족, 설치 예시 명령의 `--scope` 누락 0건 |
+
+- **미충족 2종**: **AC-R11c**(main 머지 대기 — v3.4에서 PR 기반 → 머지 커밋 기반으로 문언 정정), **AC-R12a**(릴리스 시점 절차 — 브랜치 완료 조건 아님).
+- **롤백 앵커**: `pre-plugin` 태그가 `906d909`(레거시 완전 상태)를 가리키며 원격 push 완료(`git ls-remote --tags origin pre-plugin` 양성) — R11(a)의 미확인 항목이던 태그 push가 이 시점에 해소됐다.
+
 
 ## 개정 이력
 
@@ -327,6 +362,10 @@ scratchpad에 스켈레톤 플러그인 2개 + 로컬 마켓플레이스를 구�
 | v3.1 | 2026-08-21 | **Reviewer 승인 조건 반영(재검토 불요).** (1) **M-1**: AC-R5a 패턴 (1)의 제외 문자군에 `/`를 추가해 `/dev/null` 계열 오탐 9건(훅 7·에이전트 2)을 배제 — 보정 전 패턴은 본 AC와 AC-R7a를 영구 충족 불가로 만들었다. 실측 재현으로 확인 후 수정. (2) **M-2**: R1의 '에이전트 15개 본문 완전 무수정'이 과잉 일반화임을 정정 — `so-quality.md:3`의 `/refactor` 문자열은 R5 치환 대상(커밋 3)임을 예외로 명시. AC-R1a는 영향 없음(이동 커밋에서는 100% rename). (3) **I-1**: `--plugin-dir`의 위상을 시간축(전환 중 한시적)에서 **역할축(플러그인 개발자용 로드 방식)**으로 재프레이밍 — github 소스 특성상 기여자가 `plugin install`하면 published 사본이 무성으로 로드되는 문제 대응. (4) AC-R11b trailer의 증명 범위를 '선후 기계 검증 + 통과 여부는 자기 신고'로 정직화. (5) v3 리뷰 전문을 `.review-v3.md`로 분리(C-6 관행 적용) — so-reviewer에 Write 툴이 없어 인라인 보존됐던 것을 오케스트레이터가 분리. |
 
 | v3.2 | 2026-08-21 | **SPEC-002 선병합에 따른 카운트 갱신 (SPEC-002 N-1 대응).** SPEC-002가 `so-spike` 에이전트를 신설하여 `.claude/agents/`가 15개 → **16개**가 되었다. 본 SPEC의 에이전트 카운트를 3계열 8개소에서 갱신했다 — (a) Background·F4 반영 지점, (b) R1 구조도 주석·R2 불변식, **(c) R6 마이그레이션 래퍼의 고정 목록과 마커 grep 가드** ← 기능적으로 중요. 누락 시 curl 설치 사용자의 `.claude/agents/so-spike.md`만 레거시 경로에 고아로 남아 R8이 경고한 override 문제가 발동한다. (d) AC-R1a·AC-R6a 픽스처. **개정 이력의 과거 기록은 그대로 두었다**(당시 사실의 서술이므로). 미처리 — R7의 "기존 15개 검사 전수 매핑표"는 SPEC-002가 체크 9종을 추가해 **24개**가 되었으므로 stale하다. 이 매핑표 갱신은 SPEC-001 구현 착수 시 리베이스 작업으로 수행한다. |
+
+| v3.3 | 2026-08-21 | **구현 완료 — Status → Done.** C1~C7 전 커밋 완료, `tests/run-checks.sh` **40 passed / 0 failed / 1 skipped**. (1) **스모크 실측 등재**: AC-R2c(F22)·AC-R3e(F23) 실기기 1회 수행 후 확정 사실표에 등재하고 C6 커밋에 `Smoke-Verified: AC-R2c,AC-R3e` trailer 기재 — AC-R11b의 선후 기계 검증 성립(최종 커밋 C7의 diff는 `CLAUDE.md` 단독). (2) **AC 체크박스 일괄 표기**: 37종 중 **35종 충족**. 자동 27종은 run-checks, 수동 8종은 검증 요약 절에 근거 기록. 미충족은 **AC-R11c**(PR 미생성 — 브랜치 push는 완료)와 **AC-R12a**(릴리스 시점 절차, 브랜치 완료 조건 아님) 2종뿐이다. (3) **R11(a) 태그 push 해소**: arch T0의 미확인 항목이던 `pre-plugin` 태그 원격 push를 이 시점에 수행했다. (4) **범위 밖 처분 2건 기록**(잔여 리스크 절): F24 훅 글롭 결함은 고치지 않고 후속 SPEC으로 분리, C4 래퍼의 `settings.json` 소실 버그는 커밋 `84d274a`에서 RED 테스트 선행 후 수정(검사 38 → 40). (5) **C4 잔여 이행**: `install.ps1`이 구 curl 다운로더로 남아 있던 것을 R6 흐름으로 이식하고 C-8 베타 경고를 부착했다 — 단, `pwsh` 부재로 구문 검증조차 못 했으므로 Windows 수동 검증이 남아 있다. |
+
+| v3.4 | 2026-08-21 | **main 반영 방식 확정에 따른 AC 문언 정정 2건.** (1) **AC-R11c**: `gh pr view` 기반 → **머지 커밋 기반**으로 교체. 단독 소유 저장소에서 자기 PR을 자기가 머지하는 것은 형식이며, 검증하려는 실질(R11-b — 작업 기간 중 main에 중간 상태 미서빙)과 무관하다. 다만 **머지 커밋 요구는 유지**한다 — R11(f)와 README의 롤백 절차가 `git revert -m 1 <merge-commit>`이므로 fast-forward 반영은 문서에 적힌 롤백법을 거짓으로 만든다. (2) **AC-R11b 각주**: C7(`a0948a6`) 이후 SPEC 문서 커밋 2건이 얹혀 C7이 물리적 최종 커밋이 아니게 되었다. 본 AC가 방어하려던 선후("스모크 선언 → 레거시 제거")는 `de74b90`→`a0948a6`에서 그대로 성립하고 이후 2건은 코드 변경이 없으므로, 조건 (1)을 "레거시 제거 이후 코드 변경 없음"으로 읽는다고 명시했다. **미이행 기록**: main 머지 시점에 `raw.../main/install.ps1`이 **Windows 수동 검증을 마치지 못한 래퍼**를 서빙하기 시작한다. 구 ps1은 머지 후 어차피 동작 불능(`.claude/agents/*.md` 부재)이므로 새 래퍼가 낫다고 판단해 진행하되, 미검증 배포임을 여기에 남긴다. |
 
 ## v3 리뷰 결과
 
