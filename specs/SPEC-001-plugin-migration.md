@@ -323,7 +323,7 @@ scratchpad에 스켈레톤 플러그인 2개 + 로컬 마켓플레이스를 구�
 - [x] **AC-R10**: Given `plugins/so-adk-orchestrator/agents/so-orchestrator.md`, When Step 2-B 섹션을 검사하면, Then `curl ... install.sh` 명령이 없고 플러그인 업데이트 안내가 존재한다.
 - [x] **AC-R11a**: Given 이관 브랜치, When `git tag --list pre-plugin`과 `git merge-base`를 확인하면, Then `pre-plugin` 태그가 존재하고 이관 착수 직전(레거시 완전) 커밋을 가리킨다.
 - [x] **AC-R11b**: Given 이관 브랜치의 커밋 히스토리, When 커밋 순서를 검사하면, Then (1) 레거시 제거(R9) 커밋이 브랜치의 최종 커밋이고, (2) **최종 커밋의 직전 커밋 메시지에 trailer `Smoke-Verified: AC-R2c,AC-R3e`가 존재한다** — `git log -1 <최종 커밋>^ --format=%B | grep -F 'Smoke-Verified:'`로 기계 검증(R11-e — v2의 "PR 본문 서술 순서" 검증은 선후 증명 불가로 폐기). **v3.4 각주**: C7(`a0948a6`) 이후 SPEC 문서 커밋 2건이 추가되어 C7은 브랜치의 물리적 최종 커밋이 아니게 되었다. 본 AC가 방어하려던 것은 "스모크 선언보다 레거시 제거가 앞서는 것"이며, 그 선후는 `a0948a6`와 그 부모 `de74b90` 사이에서 그대로 성립한다. 이후 얹힌 2건은 **코드 변경이 없는 문서 커밋**이다 — 조건 (1)의 실질은 "레거시 제거 이후 코드 변경 없음"으로 읽는다.
-- [ ] **AC-R11c** (C-10, **v3.4 문언 정정**): Given 이관 이력, When `git log --oneline main..feat/spec-001-plugin-migration`과 main의 머지 커밋을 확인하면, Then (1) 모든 이관 커밋이 `main`이 아닌 feature 브랜치에 있고, (2) main 반영이 **`--no-ff` 머지 커밋**으로 수행되었다. **원안 정정 사유**: 원안은 `gh pr view` 기반이었으나, 단독 소유 저장소에서 자기 PR을 자기가 머지하는 것은 형식이고 검증하려는 실질(R11-b — main에 중간 상태 미서빙)과 무관하다. 머지 커밋 요구는 유지한다 — R11-f 롤백 절차 `git revert -m 1 <merge-commit>`이 머지 커밋의 존재를 전제하므로, fast-forward 반영은 README에 기재한 롤백법을 거짓으로 만든다.
+- [x] **AC-R11c** (C-10, **v3.4 문언 정정** — 머지 커밋 `3e4f42b`로 충족): Given 이관 이력, When `git log --oneline main..feat/spec-001-plugin-migration`과 main의 머지 커밋을 확인하면, Then (1) 모든 이관 커밋이 `main`이 아닌 feature 브랜치에 있고, (2) main 반영이 **`--no-ff` 머지 커밋**으로 수행되었다. **원안 정정 사유**: 원안은 `gh pr view` 기반이었으나, 단독 소유 저장소에서 자기 PR을 자기가 머지하는 것은 형식이고 검증하려는 실질(R11-b — main에 중간 상태 미서빙)과 무관하다. 머지 커밋 요구는 유지한다 — R11-f 롤백 절차 `git revert -m 1 <merge-commit>`이 머지 커밋의 존재를 전제하므로, fast-forward 반영은 README에 기재한 롤백법을 거짓으로 만든다.
 - [ ] **AC-R12a** (**미충족: 릴리스 시점 절차** — 브랜치 완료 조건이 아니다. 릴리스 시 1회 수행 — `tests/run-checks.sh` 미포함, C-9): Given 이관 완료 저장소, When 릴리스 시점에 `claude plugin tag ./plugins/so-adk-core`를 실행하면, Then plugin.json과 marketplace 엔트리의 버전 일치가 검증되고 `so-adk-core--v1.0.0` 태그가 생성된다(orchestrator 동일). 실제 태그를 만드는 부작용이 있으므로 자동 테스트에 넣지 않는다.
 - [x] **AC-R12b**: Given `README.md`, When 개발 섹션을 검사하면, Then 릴리스 절차(버전 범프 → `claude plugin tag` → push)가 문서화되어 있다.
 
@@ -345,7 +345,8 @@ scratchpad에 스켈레톤 플러그인 2개 + 로컬 마켓플레이스를 구�
   | AC-R2c·AC-R3e | 실기기 스모크 | F22·F23 참조 |
   | AC-R8 | README 2종 8항목 대조 | 전 항목 충족, 설치 예시 명령의 `--scope` 누락 0건 |
 
-- **미충족 2종**: **AC-R11c**(main 머지 대기 — v3.4에서 PR 기반 → 머지 커밋 기반으로 문언 정정), **AC-R12a**(릴리스 시점 절차 — 브랜치 완료 조건 아님).
+- **미충족 1종**: **AC-R12a**(릴리스 시점 절차 — `claude plugin tag` 실행 시 충족).
+- **AC-R11c 충족(2026-08-21)**: `--no-ff` 머지 커밋 `3e4f42b`(부모 2개: `906d909`, `48d0282`)로 main에 반영. 이관 커밋 전부가 feature 브랜치에 있었고 main에는 머지 커밋으로만 들어갔다 — R11-f의 `git revert -m 1 3e4f42b` 롤백 경로가 성립한다.
 - **롤백 앵커**: `pre-plugin` 태그가 `906d909`(레거시 완전 상태)를 가리키며 원격 push 완료(`git ls-remote --tags origin pre-plugin` 양성) — R11(a)의 미확인 항목이던 태그 push가 이 시점에 해소됐다.
 
 
