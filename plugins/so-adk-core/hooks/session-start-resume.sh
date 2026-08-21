@@ -13,6 +13,15 @@ cat > /dev/null
 shopt -s nullglob
 PENDING=""
 for f in specs/SPEC-*.md; do
+  # SPEC bodies only. A companion document (SPEC-001-foo.arch.md,
+  # SPEC-001-foo.review-v3.md) has one more dot before .md, and [^.]+ cannot
+  # cross it — so this shape test excludes them without an extension blocklist
+  # that would need updating every time a new companion kind appears.
+  # The digit count is deliberately NOT checked: rejecting SPEC-1-foo.md would
+  # silently drop real in-progress work over a naming slip. See SPEC-003.
+  b="${f##*/}"
+  [[ "$b" =~ ^SPEC-[^.]+\.md$ ]] || continue
+
   # Skip files without a Status line; capture the first Status value.
   status="$(grep -m1 -iE '^[[:space:]]*(\*\*)?Status(\*\*)?[[:space:]]*:' "$f" | sed -E 's/.*:[[:space:]]*//; s/[[:space:]]*$//')"
   [ -z "$status" ] && status="(unknown)"

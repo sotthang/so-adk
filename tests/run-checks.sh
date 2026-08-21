@@ -1385,9 +1385,153 @@ check_migrate_preserves_file_mode() {
   if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
 }
 
+# mk_specs_fixture — SPEC-003 픽스처. SPEC 본문과 동반 문서를 섞어 배치한다.
+mk_specs_fixture() {
+  local dir="$1"
+  mkdir -p "$dir/specs/archive"
+  printf -- '# alpha\n\n**Status**: In Progress\n'   > "$dir/specs/SPEC-001-alpha.md"
+  printf -- '# beta\n\n**Status**: Done\n'           > "$dir/specs/SPEC-002-beta.md"
+  printf -- '# gamma\n\n(Status 라인 없음)\n'         > "$dir/specs/SPEC-003-gamma.md"
+  printf -- '# alpha arch\n'                         > "$dir/specs/SPEC-001-alpha.arch.md"
+  printf -- '# beta review\n'                        > "$dir/specs/SPEC-002-beta.review-v1.md"
+  printf -- '# short number\n\n**Status**: In Progress\n' > "$dir/specs/SPEC-1-foo.md"
+  printf -- '# archived\n\n**Status**: In Progress\n' > "$dir/specs/archive/SPEC-000-old.md"
+}
+
+# check_hook_session_resume_spec_filter — SessionStart 훅이 SPEC 본문만 보고한다
+# (SPEC-003 AC-R1a/R1b/R1c/R2/R3a/R3b/R5)
+check_hook_session_resume_spec_filter() {
+  local name="check_hook_session_resume_spec_filter"
+  local hook="$HOOKS_DIR/session-start-resume.sh"
+  if [ ! -x "$hook" ]; then
+    skip "$name" "hook not executable"
+    return
+  fi
+  local dir; dir="$(mk_tmp)"
+  mk_specs_fixture "$dir"
+
+  local out ctx failed=0
+  out="$(cd "$dir" && bash "$hook" < /dev/null 2>/dev/null)"
+
+  # AC-R3b: 유효 JSON + 이벤트명
+  if command -v jq &>/dev/null; then
+    if ! echo "$out" | jq -e '.hookSpecificOutput.hookEventName == "SessionStart"' &>/dev/null; then
+      echo "[FAIL] $name: output is not valid SessionStart hook JSON" >&2
+      fail "$name"; return
+    fi
+    ctx="$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext')"
+  else
+    ctx="$out"
+  fi
+
+  # AC-R1a / AC-R2 / AC-R1c: SPEC 본문은 보고된다
+  local f
+  for f in SPEC-001-alpha.md SPEC-003-gamma.md SPEC-1-foo.md; do
+    if ! echo "$ctx" | grep -qF "specs/$f"; then
+      echo "[FAIL] $name: '$f' missing from resume notice (SPEC 본문은 보고돼야 함)" >&2
+      failed=1
+    fi
+  done
+  # AC-R2: Status 라인이 없는 SPEC 본문은 (unknown)으로 보고
+  if ! echo "$ctx" | grep -qF 'SPEC-003-gamma.md (Status: (unknown))'; then
+    echo "[FAIL] $name: Status 없는 SPEC 본문이 (unknown)으로 보고되지 않음" >&2
+    failed=1
+  fi
+  # Done은 제외
+  if echo "$ctx" | grep -qF 'specs/SPEC-002-beta.md'; then
+    echo "[FAIL] $name: Status Done인 SPEC이 미완료로 보고됨" >&2
+    failed=1
+  fi
+  # AC-R1a: 동반 문서는 제외
+  for f in SPEC-001-alpha.arch.md SPEC-002-beta.review-v1.md; do
+    if echo "$ctx" | grep -qF "$f"; then
+      echo "[FAIL] $name: 동반 문서 '$f'가 보고됨 (SPEC 본문만 대상이어야 함)" >&2
+      failed=1
+    fi
+  done
+  # AC-R1b: archive는 제외
+  if echo "$ctx" | grep -qF 'SPEC-000-old.md'; then
+    echo "[FAIL] $name: specs/archive/ 하위가 보고됨" >&2
+    failed=1
+  fi
+
+  # AC-R3a: 미완료가 없으면 무출력 + exit 0
+  local empty; empty="$(mk_tmp)"
+  mkdir -p "$empty/specs"
+  printf -- '# done\n\n**Status**: Done\n' > "$empty/specs/SPEC-001-done.md"
+  printf -- '# arch only\n'                > "$empty/specs/SPEC-001-done.arch.md"
+  local eout erc
+  eout="$(cd "$empty" && bash "$hook" < /dev/null 2>/dev/null)"; erc=$?
+  if [ -n "$eout" ]; then
+    echo "[FAIL] $name: 미완료가 없는데 출력이 있음 (동반 문서만 남은 경우)" >&2
+    failed=1
+  fi
+  if [ "$erc" -ne 0 ]; then
+    echo "[FAIL] $name: 미완료 없음일 때 exit $erc (expected 0)" >&2
+    failed=1
+  fi
+
+  # AC-R5: 실제 저장소 specs/에서 동반 문서가 0건
+  local rout rctx
+  rout="$(cd "$REPO_ROOT" && bash "$hook" < /dev/null 2>/dev/null)"
+  if [ -n "$rout" ] && command -v jq &>/dev/null; then
+    rctx="$(echo "$rout" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null)"
+    if echo "$rctx" | grep -qE '\.(arch|review(-v[0-9]+)?)\.md'; then
+      echo "[FAIL] $name: 저장소 실제 specs/에서 동반 문서가 보고됨 (SPEC-001 F24 재현)" >&2
+      failed=1
+    fi
+  fi
+
+  if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
+}
+
+# check_hook_session_resume_jq_fallback — jq 부재 시에도 유효 JSON 출력 (AC-R3c, 기존 동작 보존)
+check_hook_session_resume_jq_fallback() {
+  local name="check_hook_session_resume_jq_fallback"
+  local hook="$HOOKS_DIR/session-start-resume.sh"
+  if [ ! -x "$hook" ]; then
+    skip "$name" "hook not executable"
+    return
+  fi
+  if ! command -v jq &>/dev/null; then
+    skip "$name" "jq not in PATH originally — cannot construct no-jq test"
+    return
+  fi
+  local dir; dir="$(mk_tmp)"
+  mk_specs_fixture "$dir"
+
+  # jq만 제외한 PATH를 구성한다 (check_migrate_no_jq_guard와 동일 기법).
+  local jq_path jq_dir fakebin f bn
+  jq_path="$(command -v jq)"; jq_dir="$(dirname "$jq_path")"
+  fakebin="$(mk_tmp)"
+  for f in "$jq_dir"/*; do
+    [ -e "$f" ] || continue
+    bn="$(basename "$f")"
+    [ "$bn" = "jq" ] && continue
+    ln -sf "$f" "$fakebin/$bn" 2>/dev/null
+  done
+  local newpath="$fakebin" p
+  IFS=':' read -ra _parts <<< "$PATH"
+  for p in "${_parts[@]}"; do
+    [ "$p" = "$jq_dir" ] && continue
+    newpath="$newpath:$p"
+  done
+
+  local out
+  out="$(cd "$dir" && PATH="$newpath" bash "$hook" < /dev/null 2>/dev/null)"
+  if echo "$out" | jq -e '.hookSpecificOutput.hookEventName == "SessionStart"' &>/dev/null; then
+    pass "$name"
+  else
+    fail "$name"
+    echo "[FAIL] $name: jq 부재 폴백 출력이 유효 SessionStart JSON이 아님" >&2
+  fi
+}
+
 check_migrate_normal_path_hook_removal
 check_migrate_no_jq_guard
 check_migrate_bad_settings_json
+check_hook_session_resume_spec_filter
+check_hook_session_resume_jq_fallback
 check_migrate_partial_hooks_preserved
 check_migrate_preserves_file_mode
 
