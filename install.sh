@@ -122,7 +122,7 @@ done
 
 # Download agent files
 echo "⬇️  Downloading agents..."
-AGENTS=(so-planner so-reviewer so-architect so-scaffold so-tester so-developer so-quality so-docs so-debugger so-explainer so-preflight so-security so-performance so-designer so-auditor)
+AGENTS=(so-planner so-reviewer so-architect so-scaffold so-tester so-developer so-quality so-docs so-debugger so-explainer so-preflight so-security so-performance so-designer so-auditor so-spike)
 for agent in "${AGENTS[@]}"; do
   curl -fsSL "$REPO/.claude/agents/${agent}.md" -o "./.claude/agents/${agent}.md"
   echo "   ✓ ${agent}"
