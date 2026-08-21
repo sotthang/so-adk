@@ -1,7 +1,7 @@
 ---
 name: so-designer
 description: UI/frontend design contract author. Use after Reviewer approval when the SPEC mentions UI components, screens, or frontend behavior, before Architect.
-tools: Read, Grep, Glob, Write
+tools: Read, Grep, Glob, Write, Edit
 model: opus
 permissionMode: acceptEdits
 maxTurns: 20
