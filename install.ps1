@@ -41,7 +41,8 @@ $LegacyAgents = @(
     'so-auditor', 'so-spike'
 )
 $LegacyInternalSkills = @('so-foundation', 'so-spec-format', 'so-tdd-workflow', 'so-context')
-$LegacyGuardedSkills  = @('dev', 'plan', 'pr', 'refactor')
+$LegacyGuardedSkills  = @('dev', 'plan', 'pr', 'refactor', 'simplify')   # simplify = refactor 이전 이름
+$SkillMarker          = 'Claude normally triggers this automatically'
 $LegacyHooks          = @('post-edit-check.sh', 'session-start-resume.sh')
 $LegacyOrch           = '.claude\so-orchestrator.md'
 $LegacyClaudeMdImport = '@.claude/so-orchestrator.md'
@@ -89,13 +90,22 @@ function Test-Legacy {
             $script:FoundAgents += $a
         }
     }
+    # 구 배포는 스킬을 평탄 파일로 내보냈다(skills\<name>.md, 내부 스킬은
+    # skills\internal\<name>.md). 현행 디렉터리 형식과 함께 3종을 모두 검사한다.
+    # 배열에는 이름이 아니라 경로를 담아 원 레이아웃을 백업에서 재현할 수 있게 한다.
     foreach ($s in $LegacyInternalSkills) {
-        if (Test-Path ".claude\skills\$s") { $script:FoundInternalSkills += $s }
+        if (Test-Path ".claude\skills\$s" -PathType Container) { $script:FoundInternalSkills += ".claude\skills\$s" }
+        if (Test-Path ".claude\skills\$s.md" -PathType Leaf)   { $script:FoundInternalSkills += ".claude\skills\$s.md" }
+        if (Test-Path ".claude\skills\internal\$s.md" -PathType Leaf) { $script:FoundInternalSkills += ".claude\skills\internal\$s.md" }
     }
     foreach ($s in $LegacyGuardedSkills) {
-        $p = ".claude\skills\$s\SKILL.md"
-        if ((Test-Path $p) -and (Select-String -Path $p -Pattern 'Claude normally triggers this automatically' -SimpleMatch -Quiet -ErrorAction SilentlyContinue)) {
-            $script:FoundGuardedSkills += $s
+        foreach ($p in @(".claude\skills\$s\SKILL.md", ".claude\skills\$s.md", ".claude\skills\internal\$s.md")) {
+            if ((Test-Path $p -PathType Leaf) -and
+                (Select-String -Path $p -Pattern $SkillMarker -SimpleMatch -Quiet -ErrorAction SilentlyContinue)) {
+                # 디렉터리 형식은 디렉터리째 이동한다
+                if ($p -like '*\SKILL.md') { $script:FoundGuardedSkills += (Split-Path $p -Parent) }
+                else                        { $script:FoundGuardedSkills += $p }
+            }
         }
     }
     foreach ($h in $LegacyHooks) {
@@ -140,11 +150,8 @@ function Show-DryRunPlan {
     foreach ($a in $script:FoundAgents) {
         Write-Host "  move .claude\agents\$a.md -> .claude\.so-adk-backup-$ts\agents\$a.md"
     }
-    foreach ($s in $script:FoundInternalSkills) {
-        Write-Host "  move .claude\skills\$s -> .claude\.so-adk-backup-$ts\skills\$s"
-    }
-    foreach ($s in $script:FoundGuardedSkills) {
-        Write-Host "  move .claude\skills\$s -> .claude\.so-adk-backup-$ts\skills\$s"
+    foreach ($s in @($script:FoundInternalSkills) + @($script:FoundGuardedSkills)) {
+        Write-Host "  move $s -> .claude\.so-adk-backup-$ts\$($s -replace '^\.claude\\', '')"
     }
     foreach ($h in $script:FoundHooks) {
         Write-Host "  move .claude\hooks\$h -> .claude\.so-adk-backup-$ts\hooks\$h"
@@ -255,14 +262,11 @@ function Invoke-Migrate {
             Move-Item -Path ".claude\agents\$a.md" -Destination "$backup\agents\"
         }
     }
-    if ($script:FoundInternalSkills.Count -gt 0 -or $script:FoundGuardedSkills.Count -gt 0) {
-        New-Item -ItemType Directory -Force -Path "$backup\skills" | Out-Null
-        foreach ($s in $script:FoundInternalSkills) {
-            Move-Item -Path ".claude\skills\$s" -Destination "$backup\skills\"
-        }
-        foreach ($s in $script:FoundGuardedSkills) {
-            Move-Item -Path ".claude\skills\$s" -Destination "$backup\skills\"
-        }
+    foreach ($s in @($script:FoundInternalSkills) + @($script:FoundGuardedSkills)) {
+        # 백업 안에서 원래 레이아웃을 그대로 재현한다
+        $dest = Join-Path $backup ($s -replace '^\.claude\\', '')
+        New-Item -ItemType Directory -Force -Path (Split-Path $dest -Parent) | Out-Null
+        Move-Item -Path $s -Destination $dest
     }
     if ($script:FoundHooks.Count -gt 0) {
         New-Item -ItemType Directory -Force -Path "$backup\hooks" | Out-Null
@@ -275,7 +279,7 @@ function Invoke-Migrate {
     }
 
     # Remove the now-empty directories only if they really are empty.
-    foreach ($d in @('.claude\agents', '.claude\skills', '.claude\hooks')) {
+    foreach ($d in @('.claude\agents', '.claude\skills\internal', '.claude\skills', '.claude\hooks')) {
         if ((Test-Path $d) -and -not (Get-ChildItem $d -Force)) {
             Remove-Item -Path $d -Force
         }

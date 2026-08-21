@@ -30,7 +30,10 @@ LEGACY_AGENTS=(so-planner so-reviewer so-architect so-scaffold so-tester
                so-preflight so-security so-performance so-designer
                so-auditor so-spike)
 LEGACY_INTERNAL_SKILLS=(so-foundation so-spec-format so-tdd-workflow so-context)
-LEGACY_GUARDED_SKILLS=(dev plan pr refactor)
+LEGACY_GUARDED_SKILLS=(dev plan pr refactor simplify)   # simplify = refactor의 rename 이전 이름
+# 구 배포는 스킬을 평탄 파일로 내보냈다(.claude/skills/<name>.md, 내부 스킬은
+# .claude/skills/internal/<name>.md). 현행 디렉터리 형식과 함께 3종을 모두 검사한다.
+SKILL_MARKER="Claude normally triggers this automatically"
 LEGACY_HOOKS=(post-edit-check.sh session-start-resume.sh)
 LEGACY_ORCH=".claude/so-orchestrator.md"
 LEGACY_CLAUDE_MD_IMPORT="@.claude/so-orchestrator.md"
@@ -72,13 +75,24 @@ detect_legacy() {
       FOUND_AGENTS+=("$a")
     fi
   done
+  # 내부 스킬(so-* 전유 이름) — 마커 무가드. 디렉터리 / 평탄 / 구 internal 평탄.
   for s in "${LEGACY_INTERNAL_SKILLS[@]}"; do
-    [ -d ".claude/skills/${s}" ] && FOUND_INTERNAL_SKILLS+=("$s")
+    [ -d ".claude/skills/${s}" ]              && FOUND_INTERNAL_SKILLS+=(".claude/skills/${s}")
+    [ -f ".claude/skills/${s}.md" ]           && FOUND_INTERNAL_SKILLS+=(".claude/skills/${s}.md")
+    [ -f ".claude/skills/internal/${s}.md" ]  && FOUND_INTERNAL_SKILLS+=(".claude/skills/internal/${s}.md")
   done
+  # 사용자 호출 스킬 — 동명의 사용자 작성 스킬을 건드리지 않도록 레이아웃 무관 마커 가드.
+  local p
   for s in "${LEGACY_GUARDED_SKILLS[@]}"; do
-    if [ -f ".claude/skills/${s}/SKILL.md" ] && grep -qF "Claude normally triggers this automatically" ".claude/skills/${s}/SKILL.md" 2>/dev/null; then
-      FOUND_GUARDED_SKILLS+=("$s")
-    fi
+    for p in ".claude/skills/${s}/SKILL.md" ".claude/skills/${s}.md" ".claude/skills/internal/${s}.md"; do
+      if [ -f "$p" ] && grep -qF "$SKILL_MARKER" "$p" 2>/dev/null; then
+        # 디렉터리 형식은 디렉터리째 이동한다
+        case "$p" in
+          */SKILL.md) FOUND_GUARDED_SKILLS+=("${p%/SKILL.md}") ;;
+          *)          FOUND_GUARDED_SKILLS+=("$p") ;;
+        esac
+      fi
+    done
   done
   for h in "${LEGACY_HOOKS[@]}"; do
     [ -f ".claude/hooks/${h}" ] && FOUND_HOOKS+=("$h")
@@ -128,11 +142,9 @@ print_dry_run_plan() {
   for a in "${FOUND_AGENTS[@]}"; do
     echo "  mv .claude/agents/${a}.md -> .claude/.so-adk-backup-${ts}/agents/${a}.md"
   done
-  for s in "${FOUND_INTERNAL_SKILLS[@]}"; do
-    echo "  mv .claude/skills/${s} -> .claude/.so-adk-backup-${ts}/skills/${s}"
-  done
-  for s in "${FOUND_GUARDED_SKILLS[@]}"; do
-    echo "  mv .claude/skills/${s} -> .claude/.so-adk-backup-${ts}/skills/${s}"
+  # set -u 하에서 빈 배열 전개는 오류이므로 ${arr[@]+...} 로 보호한다
+  for s in ${FOUND_INTERNAL_SKILLS[@]+"${FOUND_INTERNAL_SKILLS[@]}"} ${FOUND_GUARDED_SKILLS[@]+"${FOUND_GUARDED_SKILLS[@]}"}; do
+    echo "  mv ${s} -> .claude/.so-adk-backup-${ts}/${s#.claude/}"
   done
   for h in "${FOUND_HOOKS[@]}"; do
     echo "  mv .claude/hooks/${h} -> .claude/.so-adk-backup-${ts}/hooks/${h}"
@@ -244,15 +256,13 @@ do_migrate() {
       mv ".claude/agents/${a}.md" "$backup/agents/"
     done
   fi
-  if [ "${#FOUND_INTERNAL_SKILLS[@]}" -gt 0 ] || [ "${#FOUND_GUARDED_SKILLS[@]}" -gt 0 ]; then
-    mkdir -p "$backup/skills"
-    for s in "${FOUND_INTERNAL_SKILLS[@]}"; do
-      mv ".claude/skills/${s}" "$backup/skills/"
-    done
-    for s in "${FOUND_GUARDED_SKILLS[@]}"; do
-      mv ".claude/skills/${s}" "$backup/skills/"
-    done
-  fi
+  local dest
+  for s in ${FOUND_INTERNAL_SKILLS[@]+"${FOUND_INTERNAL_SKILLS[@]}"} ${FOUND_GUARDED_SKILLS[@]+"${FOUND_GUARDED_SKILLS[@]}"}; do
+    # 백업 안에서 원래 레이아웃을 그대로 재현한다 (skills/dev.md, skills/internal/so-*.md, skills/dev/)
+    dest="$backup/${s#.claude/}"
+    mkdir -p "$(dirname "$dest")"
+    mv "$s" "$dest"
+  done
   if [ "${#FOUND_HOOKS[@]}" -gt 0 ]; then
     mkdir -p "$backup/hooks"
     for h in "${FOUND_HOOKS[@]}"; do
@@ -264,6 +274,7 @@ do_migrate() {
   fi
 
   rmdir ".claude/agents" 2>/dev/null || true
+  rmdir ".claude/skills/internal" 2>/dev/null || true
   rmdir ".claude/skills" 2>/dev/null || true
   rmdir ".claude/hooks" 2>/dev/null || true
 

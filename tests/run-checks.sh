@@ -1530,8 +1530,131 @@ check_hook_session_resume_jq_fallback() {
 check_migrate_normal_path_hook_removal
 check_migrate_no_jq_guard
 check_migrate_bad_settings_json
+# mk_flat_skill_fixture — SPEC-004 픽스처. 구 평탄 레이아웃 스킬을 배치한다.
+# so-agentbar 실물 구성과 동일: skills/<name>.md + skills/internal/so-*.md
+mk_flat_skill_fixture() {
+  local dir="$1"
+  mkdir -p "$dir/.claude/skills/internal"
+  local s
+  for s in dev plan pr simplify; do
+    printf -- '---\nname: %s\ndescription: Shortcut. Claude normally triggers this automatically — use this for explicit control.\nuser-invocable: true\n---\n\nflat %s\n' "$s" "$s" \
+      > "$dir/.claude/skills/${s}.md"
+  done
+  for s in so-foundation so-spec-format so-tdd-workflow so-context; do
+    printf -- '---\nname: %s\nuser-invocable: false\n---\n\nflat internal %s\n' "$s" "$s" \
+      > "$dir/.claude/skills/internal/${s}.md"
+  done
+  # 사용자 작성 스킬 — SO-ADK 마커가 없으므로 절대 이동되면 안 됨 (AC-R3a)
+  printf -- '---\nname: dev-notes\n---\n\nmy own skill\n' > "$dir/.claude/skills/dev-notes.md"
+}
+
+# check_migrate_flat_skill_layout — 구 평탄 레이아웃 스킬을 감지·이동한다
+# (SPEC-004 AC-R1a/R1b/R3a/R3b/R4/R6/R8)
+check_migrate_flat_skill_layout() {
+  local name="check_migrate_flat_skill_layout"
+  _require_migrate_wrapper "$name" || return
+  local dir; dir="$(mk_tmp)"
+  mk_flat_skill_fixture "$dir"
+  # 사용자 수정본 보존 확인용 (AC-R4)
+  printf -- '---\nname: dev\ndescription: Claude normally triggers this automatically\n---\n\nMY EDIT SENTINEL\n' \
+    > "$dir/.claude/skills/dev.md"
+
+  local failed=0 out
+  # AC-R1a / AC-R8: --dry-run 이 평탄 스킬을 계획에 출력한다
+  out="$(cd "$dir" && bash "$REPO_ROOT/install.sh" --dry-run 2>&1)"
+  local s
+  for s in dev plan pr simplify; do
+    if ! echo "$out" | grep -qF ".claude/skills/${s}.md"; then
+      echo "[FAIL] $name: --dry-run 이 평탄 스킬 '${s}.md'를 보고하지 않음" >&2
+      failed=1
+    fi
+  done
+  for s in so-foundation so-context; do
+    if ! echo "$out" | grep -qF ".claude/skills/internal/${s}.md"; then
+      echo "[FAIL] $name: --dry-run 이 'internal/${s}.md'를 보고하지 않음" >&2
+      failed=1
+    fi
+  done
+  if echo "$out" | grep -qF 'dev-notes'; then
+    echo "[FAIL] $name: --dry-run 이 사용자 스킬 dev-notes를 대상에 포함" >&2
+    failed=1
+  fi
+
+  ( cd "$dir" && bash "$REPO_ROOT/install.sh" --migrate ) &>/dev/null
+
+  local bk; bk="$(cd "$dir" && ls -d .claude/.so-adk-backup-* 2>/dev/null | head -1)"
+  if [ -z "$bk" ]; then
+    echo "[FAIL] $name: 백업 디렉터리가 생성되지 않음" >&2
+    fail "$name"; return
+  fi
+  # AC-R1b / AC-R4: 원 레이아웃대로 백업에 이동, 내용 보존
+  for s in dev plan pr simplify; do
+    if [ ! -f "$dir/$bk/skills/${s}.md" ]; then
+      echo "[FAIL] $name: 백업에 skills/${s}.md 없음" >&2; failed=1
+    fi
+    if [ -f "$dir/.claude/skills/${s}.md" ]; then
+      echo "[FAIL] $name: 원위치에 skills/${s}.md 잔존" >&2; failed=1
+    fi
+  done
+  if ! grep -qF 'MY EDIT SENTINEL' "$dir/$bk/skills/dev.md" 2>/dev/null; then
+    echo "[FAIL] $name: 사용자 수정본이 백업에 보존되지 않음 (AC-R4)" >&2; failed=1
+  fi
+  # AC-R3b: internal 4종 이동
+  for s in so-foundation so-spec-format so-tdd-workflow so-context; do
+    if [ ! -f "$dir/$bk/skills/internal/${s}.md" ]; then
+      echo "[FAIL] $name: 백업에 skills/internal/${s}.md 없음" >&2; failed=1
+    fi
+  done
+  # AC-R3a: 사용자 스킬은 원위치 유지
+  if [ ! -f "$dir/.claude/skills/dev-notes.md" ]; then
+    echo "[FAIL] $name: 마커 없는 사용자 스킬 dev-notes.md 가 이동됨" >&2; failed=1
+  fi
+  # AC-R6: internal 은 비었으므로 제거, skills 는 사용자 파일이 남아 유지
+  if [ -d "$dir/.claude/skills/internal" ]; then
+    echo "[FAIL] $name: 빈 skills/internal 이 제거되지 않음" >&2; failed=1
+  fi
+  if [ ! -d "$dir/.claude/skills" ]; then
+    echo "[FAIL] $name: 사용자 파일이 남았는데 skills 디렉터리가 제거됨" >&2; failed=1
+  fi
+
+  if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
+}
+
+# check_migrate_mixed_skill_layout — 평탄·디렉터리 혼합, 같은 이름 동시 존재, simplify 디렉터리형
+# (SPEC-004 AC-R1c/R1d/R2)
+check_migrate_mixed_skill_layout() {
+  local name="check_migrate_mixed_skill_layout"
+  _require_migrate_wrapper "$name" || return
+  local dir; dir="$(mk_tmp)"
+  mkdir -p "$dir/.claude/skills/plan" "$dir/.claude/skills/dev" "$dir/.claude/skills/simplify"
+  local marker='Claude normally triggers this automatically'
+  # 서로 다른 스킬이 다른 레이아웃 (AC-R1c)
+  printf -- '---\nname: dev\ndescription: %s\n---\nflat dev\n' "$marker" > "$dir/.claude/skills/dev.md"
+  printf -- '---\nname: plan\ndescription: %s\n---\ndir plan\n' "$marker" > "$dir/.claude/skills/plan/SKILL.md"
+  # 같은 스킬이 두 레이아웃으로 동시 (AC-R1d)
+  printf -- '---\nname: dev\ndescription: %s\n---\ndir dev\n' "$marker" > "$dir/.claude/skills/dev/SKILL.md"
+  # simplify 디렉터리형 (AC-R2)
+  printf -- '---\nname: simplify\ndescription: %s\n---\ndir simplify\n' "$marker" > "$dir/.claude/skills/simplify/SKILL.md"
+
+  ( cd "$dir" && bash "$REPO_ROOT/install.sh" --migrate ) &>/dev/null
+  local bk; bk="$(cd "$dir" && ls -d .claude/.so-adk-backup-* 2>/dev/null | head -1)"
+  if [ -z "$bk" ]; then
+    echo "[FAIL] $name: 백업 디렉터리가 생성되지 않음" >&2
+    fail "$name"; return
+  fi
+  local failed=0
+  [ -f "$dir/$bk/skills/dev.md" ]          || { echo "[FAIL] $name: 평탄 dev.md 미이동 (AC-R1d)" >&2; failed=1; }
+  [ -f "$dir/$bk/skills/dev/SKILL.md" ]    || { echo "[FAIL] $name: 디렉터리 dev 미이동 (AC-R1d)" >&2; failed=1; }
+  [ -f "$dir/$bk/skills/plan/SKILL.md" ]   || { echo "[FAIL] $name: 디렉터리 plan 미이동 (AC-R1c)" >&2; failed=1; }
+  [ -f "$dir/$bk/skills/simplify/SKILL.md" ] || { echo "[FAIL] $name: 디렉터리 simplify 미이동 (AC-R2)" >&2; failed=1; }
+  [ -e "$dir/.claude/skills" ] && { echo "[FAIL] $name: 전부 이동됐는데 skills 디렉터리 잔존" >&2; failed=1; }
+  if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
+}
+
 check_hook_session_resume_spec_filter
 check_hook_session_resume_jq_fallback
+check_migrate_flat_skill_layout
+check_migrate_mixed_skill_layout
 check_migrate_partial_hooks_preserved
 check_migrate_preserves_file_mode
 
