@@ -1,6 +1,6 @@
 # SPEC-001: SO-ADK Claude Code 플러그인 전환
 
-**Status**: Approved
+**Status**: In Progress
 **Created**: 2026-08-21
 **Reviewed**: 2026-08-21 (v3 3차 검토 — **Approved**. 리뷰 전문: [`SPEC-001-plugin-migration.review-v3.md`](SPEC-001-plugin-migration.review-v3.md))
 **Revised**: 2026-08-21 (v3.1 — 승인 조건이던 M-1·M-2 문언 수정 반영 + I-1 `--plugin-dir` 역할축 재프레이밍. 재검토 불요 판정에 따라 오케스트레이터가 직접 반영)
@@ -42,6 +42,11 @@ scratchpad에 스켈레톤 플러그인 2개 + 로컬 마켓플레이스를 구�
 | F12 | **커밋된 project `.claude/settings.json`만으로는 플러그인이 활성화되지 않는다.** `extraKnownMarketplaces`(정규 형태) + `enabledPlugins`를 커밋한 상태로 새 세션을 열어도 플러그인 미로드(상대경로·절대경로 양쪽 모두 음성). 명시적 `claude plugin install <name>@<mkt> --scope project` 실행 후에야 활성화(대조군 양성) | 신규 세션 로드 여부 직접 확인 + 대조군 실험 | **C-2 확정 — v2 R11의 "settings.json 커밋으로 dogfooding 즉시 복구" 메커니즘은 작동하지 않음 → R11 재설계.** `extraKnownMarketplaces` 커밋은 마켓플레이스 **자동 등록**까지만 유효하고 **설치는 하지 않는다** — R4 문언에서 구분 기술 |
 | F13 | **잘못된 `extraKnownMarketplaces` source 형태는 에러 없이 플러그인을 조용히 `disabled`로 만든다.** `{"source":{"source":"local","path":"."}}`처럼 쓰면 `claude plugin list`에서 `✘ disabled`, 에러 메시지 없음. 정규 형태로 고치자 즉시 `✔ enabled` | `claude plugin list` 상태 직접 확인 | R4 — 커밋된 settings.json의 source 스키마를 `tests/run-checks.sh`에서 형태 검증 (AC-R4d) |
 | F14 | **`extraKnownMarketplaces`의 정규 source 형태**: 로컬 디렉터리 `{"source":{"source":"directory","path":"<경로>"}}`, GitHub `{"source":{"source":"github","repo":"owner/repo"}}`. CLI(`claude plugin marketplace add`)가 디렉터리 소스를 기록할 때는 **절대경로**를 쓴다 — 커밋 값으로 부적합 | settings 기록값 직접 확인 | R4 — 배포용 커밋 값은 **github 형태**(`{"source":{"source":"github","repo":"sotthang/so-adk"}}`) 확정 |
+| F15 | `claude --plugin-dir`로 (a) 플러그인 2개 동시 로드, (b) `settings.json` `"agent"` 키에 의한 메인 스레드 교체, (c) `hooks/hooks.json` 훅의 실제 발동이 모두 가능하다 | **양성** | scratchpad에 플러그인 A(에이전트+PostToolUse 훅)·B(`"agent"` 키) 구성 후 `claude --plugin-dir A --plugin-dir B -p ...` 실행 — 응답이 B의 에이전트 이름을 반환, 파일 쓰기 시 A의 훅이 로그에 `${CLAUDE_PLUGIN_ROOT}`를 plugin-a 경로로 기록. 단독 로드도 동작. 교차 플러그인 플레인 이름 디스패치 재확인 | **R11 공백기 봉쇄 성립** — C1 착수 전제 조건 충족 |
+| F16 | C1(`git mv` 이관) 직후 run-checks의 FAIL 집합이 설계 예측(6종)과 일치한다 | **음성** | 저장소 사본에서 `git mv` 4건 수행 후 실행 → `17 passed, 2 failed, 5 skipped`. 실제 FAIL은 `check_settings_json_valid`·`check_hook_exists_executable` 2종뿐이고, 훅 검사 4종은 `skip` 가드가 선행해 **SKIP**으로 떨어짐. rename 순도는 확인됨(`--find-renames`로 R100 외 0줄) | **`.arch.md` §5 C1 예측 정정** — PR 본문·AC-R7a 기준선을 "FAIL 2종 + SKIP 4종"으로 기록 |
+| F17 | `claude plugin install --scope project`가 이미 커밋된 `.claude/settings.json`을 변형하지 않는다(멱등) | **양성** | 픽스처에서 두 키가 든 settings.json을 커밋한 뒤 동일 install 재실행 → `already installed` 출력, `git diff` 빈 출력, sha256 동일, `jq keys` == `["enabledPlugins","extraKnownMarketplaces"]` | AC-R4c와 온보딩 절차 무충돌 확인 |
+| F18 | (부수 관찰) `--scope project` 설치라도 사용자 전역 캐시 `~/.claude/plugins/`에는 기록이 남는다 | **양성** | `known_marketplaces.json`·`installed_plugins.json`에 항목 추가됨(후자는 `scope:"project"`+`projectPath` 포함). 반면 `~/.claude/settings.json` 자체는 무변경 | **R8 온보딩 문서에 caveat 기재** — project 스코프는 *활성화 범위*의 격리이지 설치 흔적의 격리가 아니다 |
+
 
 ## Requirements
 
@@ -151,7 +156,7 @@ scratchpad에 스켈레톤 플러그인 2개 + 로컬 마켓플레이스를 구�
 - `install.ps1`도 동일 동작으로 갱신하되 **best-effort + 수동 검증**으로 한다(Out of Scope 참조). **단, ps1의 `--migrate` 경로 출력에 "이 스크립트는 자동 테스트가 없는 베타입니다 — 실행 전 `--dry-run`으로 대상을 확인하고 수동 검증하세요" 경고를 포함한다** (C-8 — 파괴적 스크립트를 AC 없이 두는 데 대한 최소 방어).
 - curl 재실행이 기존 사용자의 유일한 업데이트 경로였으므로, 기존 URL(`.../main/install.sh`)은 그대로 이 마이그레이션 래퍼를 서빙한다.
 
-#### R7 — 검증 체계 편입: 기존 15개 검사 전수 매핑 + 신규 계약 검사 (MAJOR 7 대응)
+#### R7 — 검증 체계 편입: 기존 **24개** 검사 전수 매핑 + 신규 계약 검사 (MAJOR 7 대응)
 
 - **검사 신설의 실제 명분**: 플러그인은 디렉터리 통째 배포이므로 "install.sh 나열 누락" 위협 자체는 소멸한다. 신설 파일-참조 일치성 검사가 실제로 방어하는 것은: (1) 오케스트레이터 본문의 에이전트 이름 오타 및 rename 후 미갱신, (2) **오케스트레이터 플러그인이 core 플러그인의 에이전트를 참조하는데 plugin.json에 의존성 필드가 없어 이 결합이 어디에도 선언되지 않는다는 사실 — 이 검사가 두 플러그인을 잇는 유일한 기계적 계약이다.**
 - **파일-참조 일치성 검사 (양방향)**:
@@ -160,7 +165,7 @@ scratchpad에 스켈레톤 플러그인 2개 + 로컬 마켓플레이스를 구�
 - `claude plugin validate ./plugins/so-adk-core`와 `claude plugin validate ./plugins/so-adk-orchestrator` 및 마켓플레이스 루트 validate를 추가한다(`claude` CLI가 PATH에 없으면 SKIP).
 - 훅 검사: `hooks.json`이 유효 JSON이고 `${CLAUDE_PLUGIN_ROOT}` 경로를 사용하며, 참조 스크립트 2개가 존재+실행 가능한지 검증.
 - `claude plugin eval` 활용 가능성을 검토해 결과를 테스트 주석 또는 README 개발 섹션에 기재한다(도입은 필수 아님).
-- **기존 15개 검사 전수 매핑표** (`tests/run-checks.sh` 기준 — 이 표대로 갱신/대체/삭제한다):
+- **기존 24개 검사 전수 매핑표** — SPEC-002 병합으로 체크가 15 → **24개**가 되었다. **권위 있는 매핑표는 `specs/SPEC-001-plugin-migration.arch.md` §6에 있으며**, Architect가 24개 기준으로 전면 재작성하면서 실측으로 확인했다: SPEC-002가 도입한 리졸버(`resolve_agents_dir`/`resolve_orchestrator_file`) 덕분에 **24종 중 11종은 코드 무수정으로 이관된다.** 아래 표는 v3 시점의 15개 기준 원본이며 참고용으로 남긴다:
 
   | # | 기존 검사 | 처분 | 내용 |
   | - | -------- | ---- | ---- |
@@ -277,7 +282,7 @@ scratchpad에 스켈레톤 플러그인 2개 + 로컬 마켓플레이스를 구�
 ## Acceptance Criteria
 
 - [ ] **AC-R1a**: Given 이관 브랜치, When `git diff --find-renames`로 **이동 커밋**(커밋 1)을 확인하면, Then 에이전트 16개·스킬 8개·훅 2개·오케스트레이터 1개가 모두 rename으로 나타나고, **오케스트레이터를 포함한 전 파일이 유사도 100%**(본문 무수정)이며, 이동 커밋에는 rename 외의 추가/삭제/수정이 없다. (frontmatter 추가는 커밋 3의 diff에서만 나타난다 — C-5)
-- [ ] **AC-R1b**: Given 이관 완료 저장소, When `ls plugins/so-adk-core/agents/*.md | wc -l`을 실행하면, Then 정확히 15가 출력되고 `plugins/so-adk-core/skills/*/SKILL.md`는 정확히 8개다.
+- [ ] **AC-R1b**: Given 이관 완료 저장소, When `ls plugins/so-adk-core/agents/*.md | wc -l`을 실행하면, Then 정확히 **16**이 출력되고(so-spike 포함 — SPEC-002 병합 반영) `plugins/so-adk-core/skills/*/SKILL.md`는 정확히 8개다.
 - [ ] **AC-R2a**: Given `plugins/so-adk-core`, When `claude plugin validate ./plugins/so-adk-core`를 실행하면, Then exit 0이다.
 - [ ] **AC-R2b**: Given `hooks.json`, When `jq`로 파싱하면, Then 유효 JSON이며 SessionStart·PostToolUse(matcher `Edit|Write|MultiEdit`) 두 이벤트가 존재하고 모든 command 경로가 `${CLAUDE_PLUGIN_ROOT}`로 시작하며, 참조된 스크립트 2개가 존재하고 실행 가능하다.
 - [ ] **AC-R2c** (수동 스모크): Given `claude --plugin-dir ./plugins/so-adk-core`로 연 세션, When so-planner 에이전트를 호출하면, Then so-foundation·so-spec-format 스킬이 플레인 이름으로 정상 프리로드된다(1회 수행 + Smoke-Verified trailer·PR 본문 기록 — R11-e).
