@@ -1,6 +1,6 @@
 {
   "name": "so-adk-orchestrator",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "SO-ADK main-thread orchestrator: replaces the session's main agent with natural-language intent routing to the SO-ADK pipeline. REQUIRES so-adk-core (agents are dispatched by plain name across plugins). Project/Local scope ONLY.",
   "author": { "name": "sotthang", "email": "sotthang@gmail.com" }
 }

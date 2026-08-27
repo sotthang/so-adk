@@ -38,6 +38,7 @@
 # | --------------------------------------- | -------------------------------------- | ------ |
 # | AC-R1b (agents 16 / skills 8)           | check_asset_counts                     | GREEN  |
 # | SPEC-005 AC-R4/R5 (diff 기준선)         | check_diff_base_detection              | GREEN  |
+# | SPEC-006 AC-R1/R2/R4/R5 (리뷰 라우팅)   | check_review_intent_routing            | GREEN  |
 # | AC-R2a (core plugin validate)           | check_plugin_validate_core             | GREEN  |
 # | AC-R2b (hooks.json 스키마)              | check_hooks_json_valid                 | GREEN  |
 # | AC-R2d (skills: 플레인 이름)            | check_frontmatter 계열 — 무수정(리졸버)| N/A    |
@@ -1689,6 +1690,41 @@ check_diff_base_detection() {
   if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
 }
 
+# check_review_intent_routing — "리뷰" 인텐트가 SPEC 평가자로 오배송되지 않는다 (SPEC-006 R5)
+# so-reviewer는 코드 리뷰어가 아니다(Bash 없음, SPEC 문서 평가자). 라우팅 표가 그 구분을
+# 드러내는지 정적으로 고정한다. 런타임 분기는 이 검사로 검증되지 않는다.
+check_review_intent_routing() {
+  local name="check_review_intent_routing"
+  local f="$ORCH_FILE"
+  if [ ! -f "$f" ]; then
+    fail "$name"
+    echo "[FAIL] $name: orchestrator file not found" >&2
+    return
+  fi
+  local failed=0
+  # AC-R1 — 구 라우팅 행(대상 불명의 "검토 / review / 리뷰")이 남아 있으면 안 된다
+  if grep -qF -- '"검토 / review / 리뷰"' "$f"; then
+    echo "[FAIL] $name: bare review routing row still present (routes code review to the SPEC evaluator)" >&2
+    failed=1
+  fi
+  # AC-R1 — so-reviewer 라우팅 행은 SPEC 전용임이 드러나야 한다
+  if ! grep -E '^\|.*SPEC.*\|.*so-reviewer' "$f" &>/dev/null; then
+    echo "[FAIL] $name: no SPEC-scoped routing row for so-reviewer" >&2
+    failed=1
+  fi
+  # AC-R2 — 코드 리뷰 위임 행이 존재해야 한다
+  if ! grep -E '^\|.*(코드 리뷰|code review).*\|.*code-review' "$f" &>/dev/null; then
+    echo "[FAIL] $name: no code-review delegation row" >&2
+    failed=1
+  fi
+  # AC-R4 — so-quality 행에 코드 수정 표기
+  if ! grep -E '^\|.*so-quality.*(수정|modifies)' "$f" &>/dev/null; then
+    echo "[FAIL] $name: so-quality routing row does not state that it modifies code" >&2
+    failed=1
+  fi
+  if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
+}
+
 check_hook_session_resume_spec_filter
 check_hook_session_resume_jq_fallback
 check_migrate_flat_skill_layout
@@ -1696,6 +1732,7 @@ check_migrate_mixed_skill_layout
 check_migrate_partial_hooks_preserved
 check_migrate_preserves_file_mode
 check_diff_base_detection
+check_review_intent_routing
 
 echo ""
 echo "Summary: $PASS passed, $FAIL failed, $SKIP skipped"

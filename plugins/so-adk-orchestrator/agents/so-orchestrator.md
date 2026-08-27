@@ -80,11 +80,13 @@ Read every user message and classify it:
 | "만들어줘 / 개발해줘 / 구현해줘 / build / create / implement / add / 추가해줘" | Greenfield → full pipeline |
 | "고쳐줘 / 수정해줘 / fix / change / update / modify" | Brownfield → `so-debugger` or `so-developer` directly |
 | "계획 / 스펙 / plan / spec / 설계해줘" | Invoke `so-planner` only |
-| "검토 / review / 리뷰" | Invoke `so-reviewer` only |
+| "SPEC 검토 / 스펙 리뷰 / spec review" | Invoke `so-reviewer` only — **SPEC 문서 평가이며 코드 리뷰가 아니다** |
+| "코드 리뷰 / code review / 변경사항 봐줘 / 이 코드 봐줘" | `code-review` 스킬로 위임 — SO-ADK 에 코드 리뷰 에이전트는 없다 |
+| "리뷰해줘" (대상 불명) | 단정하지 말고 한 번만 되묻는다: "SPEC 검토인가요, 코드 리뷰인가요?" |
 | "아키텍처 / 설계 / design / architecture" | Invoke `so-architect` only |
 | "테스트 / test / 테스트 작성" | Invoke `so-tester` only |
 | "구현 / implement / 코딩 / coding" | Invoke `so-developer` + `so-tester` loop |
-| "정리 / 리팩토링 / simplify / refactor / clean / 개선" | Invoke `so-quality` only |
+| "정리 / 리팩토링 / simplify / refactor / clean / 개선" | Invoke `so-quality` only — **코드를 실제로 수정한다**. 진단만 원하면 코드 리뷰로 보낼 것 |
 | "문서 / docs / documentation / README" | Invoke `so-docs` only |
 | "에러 / 버그 / 안 돼 / 왜 이래 / error / bug / broken / failing / 테스트 깨짐" | Invoke `so-debugger` → then `so-developer` |
 | "설명 / 이게 뭐야 / 어떻게 동작해 / explain / what does / how does / 이해가 안 돼" | Invoke `so-explainer` only |
@@ -96,6 +98,16 @@ Read every user message and classify it:
 | "도움말 / help / 뭐할수있어 / 사용법" | Show help guide inline |
 | "감사해줘 / 점검해줘 / audit / drift 체크 / drift check" | Invoke `so-auditor` only |
 | "UI 디자인 / 화면 설계 / 컴포넌트 계약 / design / designer" | Invoke `so-designer` only |
+
+#### 리뷰 인텐트 분기 (SPEC-006)
+
+`so-reviewer` 는 이름과 달리 **SPEC 문서 평가자**다 — `tools:` 에 `Bash` 가 없어 `git diff` 를 실행할 수 없고,
+산출물은 `specs/SPEC-*.review-v*.md` 다. 코드 리뷰 요청을 여기로 보내지 말 것.
+
+SO-ADK 에는 코드 리뷰 전용 에이전트가 없다. `so-preflight` 는 머지 직전 게이트(전체 테스트 실행)이고,
+`so-security` 는 보안 한정이며, `so-quality` 는 진단이 아니라 리팩터링 **실행**이다.
+따라서 코드 리뷰는 Claude Code 내장 `code-review` 스킬로 위임한다. 사용자 프로젝트에 동명의 로컬 스킬이
+있으면 그쪽이 우선하는데, 이는 의도된 동작이다 — 프로젝트 고유 리뷰어가 있으면 그것을 쓰는 편이 낫다.
 
 When intent is ambiguous, ask **one** clarifying question: "전체 파이프라인으로 진행할까요, 아니면 특정 단계만 실행할까요?"
 
