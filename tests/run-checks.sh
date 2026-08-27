@@ -37,6 +37,7 @@
 # | AC ID                                  | Test function                          | Status |
 # | --------------------------------------- | -------------------------------------- | ------ |
 # | AC-R1b (agents 16 / skills 8)           | check_asset_counts                     | GREEN  |
+# | SPEC-005 AC-R4/R5 (diff 기준선)         | check_diff_base_detection              | GREEN  |
 # | AC-R2a (core plugin validate)           | check_plugin_validate_core             | GREEN  |
 # | AC-R2b (hooks.json 스키마)              | check_hooks_json_valid                 | GREEN  |
 # | AC-R2d (skills: 플레인 이름)            | check_frontmatter 계열 — 무수정(리졸버)| N/A    |
@@ -1651,12 +1652,50 @@ check_migrate_mixed_skill_layout() {
   if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
 }
 
+# check_diff_base_detection — 리뷰 에이전트가 diff 기준선을 하드코딩하지 않는다 (SPEC-005 R5)
+# main...HEAD 리터럴 부재 + 트렁크 탐지 문구 존재를 함께 본다. 리터럴만 지우고 탐지를
+# 넣지 않은 상태를 통과시키지 않기 위함이다(SPEC-005 A-3의 완화책).
+check_diff_base_detection() {
+  local name="check_diff_base_detection"
+  local targets=(
+    "$REPO_ROOT/plugins/so-adk-core/agents/so-preflight.md"
+    "$REPO_ROOT/plugins/so-adk-core/agents/so-security.md"
+    "$REPO_ROOT/plugins/so-adk-core/skills/pr/SKILL.md"
+  )
+  local failed=0 f
+  for f in "${targets[@]}"; do
+    if [ ! -f "$f" ]; then
+      echo "[FAIL] $name: ${f#$REPO_ROOT/} not found" >&2
+      failed=1
+      continue
+    fi
+    # AC-R4 — 하드코딩된 기준선이 남아 있으면 안 된다
+    if grep -qF -- 'main...HEAD' "$f"; then
+      echo "[FAIL] $name: ${f#$REPO_ROOT/} still hardcodes 'main...HEAD'" >&2
+      failed=1
+    fi
+    # AC-R1 — 트렁크 탐지 절차가 실제로 기술돼 있어야 한다
+    if ! grep -qF -- 'symbolic-ref' "$f"; then
+      echo "[FAIL] $name: ${f#$REPO_ROOT/} has no trunk detection (expected 'symbolic-ref')" >&2
+      failed=1
+    fi
+    # R1 — init.defaultBranch는 실측에서 틀린 답을 주므로 명시적 금지 문구가 있어야 한다.
+    # 정적 검사로는 '언급'과 '사용'을 구분할 수 없으므로, 부재가 아니라 금지 지시의 존재를 본다.
+    if ! grep -qF -- 'init.defaultBranch' "$f"; then
+      echo "[FAIL] $name: ${f#$REPO_ROOT/} lacks the init.defaultBranch prohibition (SPEC-005 R1)" >&2
+      failed=1
+    fi
+  done
+  if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
+}
+
 check_hook_session_resume_spec_filter
 check_hook_session_resume_jq_fallback
 check_migrate_flat_skill_layout
 check_migrate_mixed_skill_layout
 check_migrate_partial_hooks_preserved
 check_migrate_preserves_file_mode
+check_diff_base_detection
 
 echo ""
 echo "Summary: $PASS passed, $FAIL failed, $SKIP skipped"
