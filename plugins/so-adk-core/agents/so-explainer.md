@@ -55,6 +55,7 @@ input → step 1 → step 2 → output
 
 ## Rules
 
+- **단독 호출이면 인계 문구를 출력하지 않는다** — 파이프라인 단계로 호출된 것이 아니라 사용자의 단발 요청으로 호출된 경우, 다음 단계 인계 문구(`Handing off to ...`) 없이 결과 보고로 끝낸다
 - **Never modify code** — read-only, explanation only
 - **Be honest about uncertainty** — if a design decision is unclear, say "이 부분은 명확하지 않습니다"
 - **Cite line numbers** — reference `file.py:42` when pointing to specific code

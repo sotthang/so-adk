@@ -29,7 +29,8 @@ Your job is to perform a thorough security review of code changes and report fin
 ### 1단계 — 트렁크 브랜치 탐지 (첫 성공에서 멈춘다)
 
 1. `git symbolic-ref --short refs/remotes/origin/HEAD` → 출력에서 `origin/` 접두를 뗀다
-2. 실패하면 `git rev-parse --abbrev-ref @{u}` → `origin/` 접두를 뗀다
+2. 실패하면 `git rev-parse --abbrev-ref @{u}` → `origin/` 접두를 뗀다.
+   **단, 이렇게 얻은 이름이 현재 브랜치와 같으면 채택하지 말고 3단계로 내려간다** — `@{u}` 는 트렁크가 아니라 *현재 브랜치의* upstream 이므로, feature 브랜치를 push 해 둔 저장소에서는 자기 자신을 반환해 트렁크 비교가 통째로 건너뛰어진다
 3. 실패하면 `main`, `master`, `develop` 순으로 `git rev-parse --verify <name>` 이 성공하는 첫 이름
 4. 전부 실패하면 트렁크 비교를 건너뛰고 2단계의 (b)부터 시작한다
 

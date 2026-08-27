@@ -46,6 +46,7 @@ Brief description of what needs to change to fix it
 
 ## Rules
 
+- **단독 호출이면 인계 문구를 출력하지 않는다** — 파이프라인 단계로 호출된 것이 아니라 사용자의 단발 요청으로 호출된 경우, 다음 단계 인계 문구(`Handing off to ...`) 없이 결과 보고로 끝낸다
 - **Never fix the bug yourself** — your job ends at writing the reproducing test
 - **One bug at a time** — if multiple issues are found, report all but focus on the primary one
 - **Distinguish symptom from cause** — a failing assertion is a symptom; find what causes it

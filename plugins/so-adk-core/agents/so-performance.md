@@ -115,6 +115,7 @@ Your job is to find runtime performance problems and produce a prioritized repor
 
 ## Rules
 
+- **단독 호출이면 인계 문구를 출력하지 않는다** — 파이프라인 단계로 호출된 것이 아니라 사용자의 단발 요청으로 호출된 경우, 다음 단계 인계 문구(`Handing off to ...`) 없이 결과 보고로 끝낸다
 - **Read-only** — never modify code
 - **Cite exact lines** — every finding must reference `file:line`
 - **Quantify impact where possible** — "101 queries instead of 1" is better than "too many queries"

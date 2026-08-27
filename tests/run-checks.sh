@@ -39,6 +39,7 @@
 # | AC-R1b (agents 16 / skills 8)           | check_asset_counts                     | GREEN  |
 # | SPEC-005 AC-R4/R5 (diff 기준선)         | check_diff_base_detection              | GREEN  |
 # | SPEC-006 AC-R1/R2/R4/R5 (리뷰 라우팅)   | check_review_intent_routing            | GREEN  |
+# | SPEC-007 AC-R1/R2 (단독 호출 인계)      | check_standalone_handoff_rule          | GREEN  |
 # | AC-R2a (core plugin validate)           | check_plugin_validate_core             | GREEN  |
 # | AC-R2b (hooks.json 스키마)              | check_hooks_json_valid                 | GREEN  |
 # | AC-R2d (skills: 플레인 이름)            | check_frontmatter 계열 — 무수정(리졸버)| N/A    |
@@ -1680,6 +1681,11 @@ check_diff_base_detection() {
       echo "[FAIL] $name: ${f#$REPO_ROOT/} has no trunk detection (expected 'symbolic-ref')" >&2
       failed=1
     fi
+    # SPEC-008 R3 — 자기참조 가드(D1)가 기술돼 있어야 한다
+    if ! grep -qF -- '현재 브랜치와 같으면' "$f"; then
+      echo "[FAIL] $name: ${f#$REPO_ROOT/} lacks the @{u} self-reference guard (SPEC-008 R1)" >&2
+      failed=1
+    fi
     # R1 — init.defaultBranch는 실측에서 틀린 답을 주므로 명시적 금지 문구가 있어야 한다.
     # 정적 검사로는 '언급'과 '사용'을 구분할 수 없으므로, 부재가 아니라 금지 지시의 존재를 본다.
     if ! grep -qF -- 'init.defaultBranch' "$f"; then
@@ -1687,6 +1693,14 @@ check_diff_base_detection() {
       failed=1
     fi
   done
+  # SPEC-008 R3 — SPEC-005 의 R2(판정 유보)·R3(기준선 명시)를 고정한다.
+  # 기존 검사는 R1 만 고정해 이 둘을 삭제해도 GREEN 이었다(사후 검토 D2).
+  local pf="$REPO_ROOT/plugins/so-adk-core/agents/so-preflight.md"
+  if [ -f "$pf" ]; then
+    grep -qF -- '판정을 유보' "$pf" || { echo "[FAIL] $name: so-preflight.md lacks the abstain rule (SPEC-005 R2)" >&2; failed=1; }
+    grep -qF -- '기준선 명시'  "$pf" || { echo "[FAIL] $name: so-preflight.md lacks the baseline-reporting step (SPEC-005 R3)" >&2; failed=1; }
+    grep -qF -- '변경이 없으면 GO 가 아니다' "$pf" || { echo "[FAIL] $name: so-preflight.md lacks the no-change-is-not-GO rule (SPEC-005 R2)" >&2; failed=1; }
+  fi
   if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
 }
 
@@ -1717,11 +1731,49 @@ check_review_intent_routing() {
     echo "[FAIL] $name: no code-review delegation row" >&2
     failed=1
   fi
+  # SPEC-008 R3 — F1 재오염 차단: 존재하지 않는 플러그인 스킬명이 다시 들어오면 안 된다.
+  # 기존 검사는 '.*code-review' 부분 일치라 so-adk-core:code-review 도 통과했다(사후 검토 D2).
+  if grep -qF -- 'so-adk-core:code-review' "$f"; then
+    echo "[FAIL] $name: nonexistent plugin skill 'so-adk-core:code-review' referenced (SPEC-006 F1)" >&2
+    failed=1
+  fi
+  # SPEC-008 R3 — 대상 불명 되묻기 행(SPEC-006 R3)을 고정한다. 기존에는 검사가 없었다.
+  if ! grep -E '^\|.*리뷰해줘.*\|' "$f" &>/dev/null; then
+    echo "[FAIL] $name: no ambiguous-review clarification row (SPEC-006 R3)" >&2
+    failed=1
+  fi
   # AC-R4 — so-quality 행에 코드 수정 표기
   if ! grep -E '^\|.*so-quality.*(수정|modifies)' "$f" &>/dev/null; then
     echo "[FAIL] $name: so-quality routing row does not state that it modifies code" >&2
     failed=1
   fi
+  if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
+}
+
+# check_standalone_handoff_rule — 단독 호출 시 파이프라인 인계 문구를 억제한다 (SPEC-007 R2)
+# Output Format 템플릿은 건드리지 않는다(정상 경로 회귀 위험). Rules 의 조건 문구만 고정한다.
+check_standalone_handoff_rule() {
+  local name="check_standalone_handoff_rule"
+  local adir="$REPO_ROOT/plugins/so-adk-core/agents"
+  # SPEC-008 R4 — 인계 문구를 가진 에이전트 전수(7개). SPEC-007 은 3개만 처리했다.
+  local agents=(so-quality so-tester so-debugger so-planner so-developer so-performance so-explainer)
+  local failed=0 a f rules
+  for a in "${agents[@]}"; do
+    f="$adir/${a}.md"
+    if [ ! -f "$f" ]; then
+      echo "[FAIL] $name: ${a}.md not found" >&2
+      failed=1
+      continue
+    fi
+    # SPEC-008 R3 — 단어 존재가 아니라 정규 문안을 확인한다. 의미 반전
+    # ("단독 호출이어도 ... 반드시 출력한다")이 기존 검사를 통과했다(사후 검토 D2).
+    # 또한 ## Rules 절 안에 있어야 한다 — 주석으로 옮겨두는 위치 이탈을 막는다.
+    rules="$(awk '/^## Rules/{f=1; next} f && /^## /{exit} f{print}' "$f")"
+    if ! grep -qF -- '인계 문구를 출력하지 않는다' <<<"$rules"; then
+      echo "[FAIL] $name: ${a}.md has no canonical suppression rule under '## Rules' (SPEC-008 R3/R4)" >&2
+      failed=1
+    fi
+  done
   if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
 }
 
@@ -1733,6 +1785,7 @@ check_migrate_partial_hooks_preserved
 check_migrate_preserves_file_mode
 check_diff_base_detection
 check_review_intent_routing
+check_standalone_handoff_rule
 
 echo ""
 echo "Summary: $PASS passed, $FAIL failed, $SKIP skipped"
