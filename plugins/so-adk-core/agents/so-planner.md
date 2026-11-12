@@ -4,7 +4,6 @@ description: Requirements analyst and SPEC writer. Use when starting any new fea
 tools: Read, Grep, Glob, Write, Edit, WebSearch, Skill
 model: fable
 effort: high
-permissionMode: acceptEdits
 maxTurns: 30
 skills:
   - so-foundation

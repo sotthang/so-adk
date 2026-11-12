@@ -4,7 +4,6 @@ description: System designer. Use after SPEC is approved to design file structur
 tools: Read, Grep, Glob, Write, Edit, Bash, Skill
 model: fable
 effort: high
-permissionMode: default
 maxTurns: 30
 skills:
   - so-foundation

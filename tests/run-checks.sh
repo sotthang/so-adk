@@ -40,6 +40,13 @@
 # | SPEC-005 AC-R4/R5 (diff 기준선)         | check_diff_base_detection              | GREEN  |
 # | SPEC-006 AC-R1/R2/R4/R5 (리뷰 라우팅)   | check_review_intent_routing            | GREEN  |
 # | SPEC-007 AC-R1/R2 (단독 호출 인계)      | check_standalone_handoff_rule          | GREEN  |
+# | SPEC-009 R1/R2 (무시 필드·없는 도구)   | check_no_ignored_plugin_agent_fields   | GREEN  |
+# | SPEC-009 R3 (core 의존 선언)            | check_orchestrator_declares_core_dependency | GREEN |
+# | SPEC-009 R4 (Fable 한도 → opus)         | check_fable_fallback_rule              | GREEN  |
+# | SPEC-009 R5 (라우팅 eval 정적 무결성)   | check_routing_evals (실행은 tests/run-evals.sh) | GREEN |
+# | SPEC-010 R1/R2 (워크플로 제어 흐름)     | check_workflow_unit_tests (node --test) | GREEN |
+# | SPEC-010 R3 (워크플로 정적 무결성)      | check_workflows_static                 | GREEN  |
+# | SPEC-010 R4 (orchestrator 연동+폴백)    | check_orchestrator_uses_workflows      | GREEN  |
 # | AC-R2a (core plugin validate)           | check_plugin_validate_core             | GREEN  |
 # | AC-R2b (hooks.json 스키마)              | check_hooks_json_valid                 | GREEN  |
 # | AC-R2d (skills: 플레인 이름)            | check_frontmatter 계열 — 무수정(리졸버)| N/A    |
@@ -862,9 +869,9 @@ check_hooks_json_valid() {
     failed=1
   fi
   local non_plugin_root
-  non_plugin_root="$(jq -r '[.hooks | to_entries[]?.value[]?.hooks[]?.command] | map(select(startswith("${CLAUDE_PLUGIN_ROOT}") | not)) | length' "$hooks_json" 2>/dev/null)"
+  non_plugin_root="$(jq -r '[.hooks | to_entries[]?.value[]?.hooks[]?.command] | map(select(startswith("\"${CLAUDE_PLUGIN_ROOT}/") | not)) | length' "$hooks_json" 2>/dev/null)"
   if [ "${non_plugin_root:-1}" != "0" ]; then
-    echo "[FAIL] $name: not every hook command starts with \${CLAUDE_PLUGIN_ROOT}" >&2
+    echo "[FAIL] $name: not every hook command starts with a quoted \"\${CLAUDE_PLUGIN_ROOT}/ (validate --strict 경고: 공백 경로 분리)" >&2
     failed=1
   fi
   local script
@@ -1777,6 +1784,177 @@ check_standalone_handoff_rule() {
   if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
 }
 
+# check_no_ignored_plugin_agent_fields — 플러그인 에이전트가 무시되는 frontmatter 필드를 갖지 않는다 (SPEC-009 R1)
+# Claude Code 는 보안상 플러그인 에이전트의 permissionMode / hooks / mcpServers / initialPrompt 를 무시한다
+# (https://code.claude.com/docs/en/sub-agents.md). 남겨두면 적용되는 것처럼 읽혀 오해를 낳는다.
+check_no_ignored_plugin_agent_fields() {
+  local name="check_no_ignored_plugin_agent_fields"
+  local failed=0 f fm field
+  for f in "$REPO_ROOT"/plugins/*/agents/*.md; do
+    [ -f "$f" ] || continue
+    fm="$(awk 'NR==1 && /^---$/{f=1; next} f && /^---$/{exit} f{print}' "$f")"
+    for field in permissionMode hooks mcpServers initialPrompt; do
+      if grep -q "^${field}:" <<<"$fm"; then
+        echo "[FAIL] $name: $(basename "$f") has '${field}:' — ignored for plugin agents" >&2
+        failed=1
+      fi
+    done
+    # 존재하지 않는 도구는 오류 없이 버려진다 — MultiEdit 은 현행 Claude Code 에 없다 (실측: --tools "Read,MultiEdit" → Read 만)
+    if grep -E '^tools:' <<<"$fm" | grep -qw 'MultiEdit'; then
+      echo "[FAIL] $name: $(basename "$f") lists nonexistent tool 'MultiEdit'" >&2
+      failed=1
+    fi
+  done
+  if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
+}
+
+# check_orchestrator_declares_core_dependency — orchestrator manifest 가 so-adk-core 의존을 선언한다 (SPEC-009 R3)
+# orchestrator 는 core 의 에이전트를 이름으로 디스패치하므로 core 없이 켜면 라우팅이 전부 실패한다.
+check_orchestrator_declares_core_dependency() {
+  local name="check_orchestrator_declares_core_dependency"
+  if ! command -v jq &>/dev/null; then skip "$name" "jq not in PATH"; return; fi
+  local f="$REPO_ROOT/plugins/so-adk-orchestrator/.claude-plugin/plugin.json"
+  if jq -e '.dependencies[]? | (if type=="string" then . else .name end) | select(.=="so-adk-core" or .=="so-adk-core@so-adk")' "$f" &>/dev/null; then
+    pass "$name"
+  else
+    echo "[FAIL] $name: plugin.json .dependencies does not include so-adk-core" >&2
+    fail "$name"
+  fi
+}
+
+# check_fable_fallback_rule — Fable 사용 한도 시 orchestrator 가 스스로 opus 로 재디스패치한다 (SPEC-009 R4)
+# Claude Code 의 fallbackModel 은 rate/usage limit 에서 발동하지 않으므로(model-config 문서) 하네스가 맡는다.
+# 대상 에이전트 목록은 frontmatter 에서 동적으로 뽑는다 — 새 Fable 에이전트가 생기면 규칙 누락이 RED 가 된다.
+check_fable_fallback_rule() {
+  local name="check_fable_fallback_rule"
+  local orch adir sect failed=0 a
+  orch="$(resolve_orchestrator_file)"; adir="$(resolve_agents_dir)"
+  sect="$(awk '/^### Step 3\.1 /{f=1; next} f && /^##/{exit} f{print}' "$orch")"
+  if [ -z "$sect" ]; then
+    echo "[FAIL] $name: orchestrator has no '### Step 3.1' section" >&2
+    fail "$name"; return
+  fi
+  local fable_agents
+  fable_agents="$(grep -l '^model: fable$' "$adir"/*.md 2>/dev/null | xargs -n1 basename 2>/dev/null | sed 's/\.md$//')"
+  if [ -z "$fable_agents" ]; then
+    echo "[FAIL] $name: no agent has 'model: fable' — rule target is empty" >&2
+    failed=1
+  fi
+  for a in $fable_agents; do
+    if ! grep -qF -- "\`$a\`" <<<"$sect"; then
+      echo "[FAIL] $name: Step 3.1 does not cover Fable agent '$a'" >&2
+      failed=1
+    fi
+  done
+  local phrase
+  for phrase in 'model: "opus"' '사용자에게 묻지 않는다' '한 번만 재시도한다' '세션 끝까지' 'sonnet 으로 내리지 않는다'; do
+    if ! grep -qF -- "$phrase" <<<"$sect"; then
+      echo "[FAIL] $name: Step 3.1 missing canonical phrase: $phrase" >&2
+      failed=1
+    fi
+  done
+  if ! awk '/^## Rules/{f=1; next} f && /^## /{exit} f{print}' "$orch" | grep -qF 'Step 3.1'; then
+    echo "[FAIL] $name: '## Rules' does not reference Step 3.1" >&2
+    failed=1
+  fi
+  if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
+}
+
+# check_routing_evals — 라우팅 회귀 eval 스위트의 정적 무결성 (SPEC-009 R5)
+# 실행(비용 발생)은 tests/run-evals.sh 가 맡는다. 여기서는 케이스 존재와 grader 참조만 본다.
+check_routing_evals() {
+  local name="check_routing_evals"
+  local edir="$REPO_ROOT/evals" adir failed=0 c
+  adir="$(resolve_agents_dir)"
+  local required=(route-greenfield-planner route-error-debugger route-explain-explainer
+    route-security-security route-slow-performance route-merge-preflight-security
+    route-code-review-skill route-review-ambiguous-asks route-spec-review-reviewer)
+  for c in "${required[@]}"; do
+    if [ ! -f "$edir/$c/prompt.md" ] || ! ls "$edir/$c/graders/"*.md &>/dev/null; then
+      echo "[FAIL] $name: missing eval case $c (prompt.md + graders/*.md)" >&2
+      failed=1
+    fi
+  done
+  # grader 가 참조하는 에이전트는 실재해야 한다 — 없는 대상(SPEC-006 F1 류)을 기대하는 grader 방지
+  local ref
+  while IFS= read -r ref; do
+    [ -n "$ref" ] || continue
+    if [ ! -f "$adir/$ref.md" ]; then
+      echo "[FAIL] $name: grader references nonexistent agent '$ref'" >&2
+      failed=1
+    fi
+  done < <(grep -rhoE '\?(so-[a-z-]+)"' "$edir"/*/graders/ 2>/dev/null | sed -E 's/^\?//; s/"$//' | sort -u)
+  if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
+}
+
+# check_workflow_unit_tests — workflows/*.js 제어 흐름 단위 테스트 (SPEC-010 R1/R2)
+check_workflow_unit_tests() {
+  local name="check_workflow_unit_tests"
+  if ! command -v node &>/dev/null; then skip "$name" "node not in PATH"; return; fi
+  if node --test "$REPO_ROOT/tests/workflows.test.mjs" &>/dev/null; then
+    pass "$name"
+  else
+    echo "[FAIL] $name: node --test tests/workflows.test.mjs failed" >&2
+    fail "$name"
+  fi
+}
+
+# check_workflows_static — 워크플로 스크립트 정적 무결성 (SPEC-010 R3)
+# meta.name == 파일명, agentType 은 실재 에이전트, Date.now/Math.random/new Date() 금지(재개를 깨뜨린다)
+check_workflows_static() {
+  local name="check_workflows_static"
+  local wdir="$REPO_ROOT/plugins/so-adk-core/workflows" adir failed=0 f base ref
+  adir="$(resolve_agents_dir)"
+  for base in tdd-cycle pr-gate; do
+    [ -f "$wdir/$base.js" ] || { echo "[FAIL] $name: missing workflows/$base.js" >&2; failed=1; }
+  done
+  for f in "$wdir"/*.js; do
+    [ -f "$f" ] || continue
+    base="$(basename "$f" .js)"
+    if ! head -1 "$f" | grep -qx 'export const meta = {'; then
+      echo "[FAIL] $name: $base.js must start with 'export const meta = {'" >&2; failed=1
+    fi
+    if ! grep -qE "^  name: '${base}',$" "$f"; then
+      echo "[FAIL] $name: $base.js meta.name must be '$base'" >&2; failed=1
+    fi
+    if grep -nE 'Date\.now\(|Math\.random\(|new Date\(\)' "$f" >&2; then
+      echo "[FAIL] $name: $base.js uses a nondeterministic API (breaks resume)" >&2; failed=1
+    fi
+    while IFS= read -r ref; do
+      [ -f "$adir/$ref.md" ] || { echo "[FAIL] $name: $base.js agentType references nonexistent agent '$ref'" >&2; failed=1; }
+    done < <(grep -oE "so-adk-core:so-[a-z-]+" "$f" | sed 's/^so-adk-core://' | sort -u)
+  done
+  if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
+}
+
+# check_orchestrator_uses_workflows — Step 5/6 이 워크플로를 쓰고, 못 쓸 때 수동 절차로 내려간다 (SPEC-010 R4)
+check_orchestrator_uses_workflows() {
+  local name="check_orchestrator_uses_workflows"
+  local orch failed=0 step wfname sect
+  orch="$(resolve_orchestrator_file)"
+  for pair in "5:tdd-cycle" "6:pr-gate"; do
+    step="${pair%%:*}"; wfname="${pair#*:}"
+    sect="$(awk -v h="### Step ${step} " 'index($0,h)==1{f=1; next} f && /^##/{exit} f{print}' "$orch")"
+    if ! grep -qF -- "\`so-adk-core:${wfname}\`" <<<"$sect"; then
+      echo "[FAIL] $name: Step $step does not run workflow so-adk-core:${wfname}" >&2; failed=1
+    fi
+    if ! grep -qF -- 'Workflow 를 쓸 수 없으면' <<<"$sect"; then
+      echo "[FAIL] $name: Step $step has no manual fallback ('Workflow 를 쓸 수 없으면')" >&2; failed=1
+    fi
+  done
+  # 반환 status 를 전부 처리하는지 — 처리 안 된 status 는 조용히 흘러간다
+  sect="$(awk 'index($0,"### Step 5 ")==1{f=1; next} f && /^##/{exit} f{print}' "$orch")"
+  local st
+  for st in green exhausted not-red refactor-broke error; do
+    grep -qF -- "\`$st\`" <<<"$sect" || { echo "[FAIL] $name: Step 5 does not handle status '$st'" >&2; failed=1; }
+  done
+  sect="$(awk 'index($0,"### Step 6 ")==1{f=1; next} f && /^##/{exit} f{print}' "$orch")"
+  for st in proceed ask stop; do
+    grep -qF -- "\`$st\`" <<<"$sect" || { echo "[FAIL] $name: Step 6 does not handle decision '$st'" >&2; failed=1; }
+  done
+  if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
+}
+
 check_hook_session_resume_spec_filter
 check_hook_session_resume_jq_fallback
 check_migrate_flat_skill_layout
@@ -1786,6 +1964,13 @@ check_migrate_preserves_file_mode
 check_diff_base_detection
 check_review_intent_routing
 check_standalone_handoff_rule
+check_no_ignored_plugin_agent_fields
+check_orchestrator_declares_core_dependency
+check_fable_fallback_rule
+check_routing_evals
+check_workflow_unit_tests
+check_workflows_static
+check_orchestrator_uses_workflows
 
 echo ""
 echo "Summary: $PASS passed, $FAIL failed, $SKIP skipped"

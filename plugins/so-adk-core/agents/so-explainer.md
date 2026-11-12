@@ -3,7 +3,6 @@ name: so-explainer
 description: Code explainer. Reads code and explains what it does, how it works, and why it's structured the way it is. Invoke when user asks to understand code, a file, a function, or a system.
 tools: Read, Grep, Glob, Skill
 model: sonnet
-permissionMode: default
 maxTurns: 20
 skills:
   - so-foundation

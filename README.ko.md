@@ -219,6 +219,17 @@ SO-ADK가 요청 유형을 자동으로 판단합니다:
 
 파이프라인이 중간에 중단된 경우, 다음 세션에서 미완료 SPEC을 감지하고 중단된 지점부터 이어서 진행할지 물어봅니다.
 
+### 워크플로
+
+파이프라인 중 두 구간은 오케스트레이터 프롬프트가 순서를 짜는 대신 Workflow 스크립트로 돕니다. 제어 흐름을 모델 판단이 아니라 코드가 강제합니다:
+
+| 워크플로 | 코드로 고정하는 것 |
+| -------- | ------------------ |
+| `so-adk-core:tdd-cycle` | RED → Developer↔Tester 루프 **최대 5회** → Quality → 재검증. `green` / `exhausted` / `not-red` / `refactor-broke` / `error` 반환 |
+| `so-adk-core:pr-gate` | `so-preflight` 와 `so-security` **병렬** 실행, 고정 표가 `proceed` / `ask` / `stop` 판정. 응답 없음·판정 유보(빈 diff)는 절대 통과하지 않음 |
+
+사람 확인 지점(SPEC 승인, ask 판정, 루프 소진)은 오케스트레이터에 남습니다 — 워크플로는 status 를 돌려주고 오케스트레이터가 묻습니다. 각 에이전트는 자기 모델을 유지합니다(`agentType` 으로 디스패치). Workflow 도구를 쓸 수 없거나 실행을 거부하면 기존 Agent 수동 절차로 내려갑니다. Claude Code 는 워크플로 실행마다 승인을 묻습니다 — 생략하려면 `.claude/settings.local.json` 의 `permissions.allow` 에 `"Workflow"` 를 추가하세요.
+
 ### 에이전트별 모델 배정
 
 | 에이전트 | 모델 | 이유 |
@@ -239,6 +250,10 @@ SO-ADK가 요청 유형을 자동으로 판단합니다:
 | Performance | sonnet | 병목/N+1 분석, 읽기 전용 리포트 |
 | Spike | sonnet | 미검증 가정 실측, 저장소 사실 검증 |
 | Security | opus | 깊은 보안 분석에 강한 추론 필요 |
+
+**Fable 한도가 다 차면.** Fable 은 주간 한도가 따로 있어 다른 한도보다 먼저 소진될 수 있습니다. Claude Code 의 `fallbackModel` 은 rate/usage limit 에서 **발동하지 않으므로** 오케스트레이터가 맡습니다: Fable 에이전트(Planner, Architect)가 사용 한도로 실패하면 묻지 않고 `opus` 로 재디스패치하고, 한 줄로 알린 뒤, 세션 끝까지 Fable 에이전트를 `opus` 로 호출합니다. `sonnet` 으로는 내리지 않습니다. 오케스트레이터 플러그인 없이 쓸 때는 수동으로 전환하세요: `ANTHROPIC_DEFAULT_FABLE_MODEL=claude-opus-5-5 claude`.
+
+`so-security` 는 Fable 에 두지 마세요: Fable 은 사이버보안으로 분류된 요청을 다른 모델로 돌리는데, 서브에이전트 안에서는 이것이 실패로 끝납니다.
 
 ---
 
@@ -270,6 +285,9 @@ so-adk/
 │   │   │   ├── so-performance.md          # 병목 분석, 읽기 전용 (sonnet)
 │   │   │   ├── so-spike.md                # 미검증 가정 검증 (sonnet)
 │   │   │   └── so-security.md             # OWASP 보안 검토 (opus)
+│   │   ├── workflows/                     # 결정적 파이프라인 구간 (Workflow 스크립트)
+│   │   │   ├── tdd-cycle.js               # RED → GREEN 루프(최대 5) → REFACTOR + 재검증
+│   │   │   └── pr-gate.js                 # preflight + security 병렬, 실패 시 닫힘 판정
 │   │   ├── skills/                        # 각 스킬은 SKILL.md를 가진 디렉터리
 │   │   │   ├── so-foundation/SKILL.md     # 모든 에이전트 공통 원칙 (프리로드)
 │   │   │   ├── so-tdd-workflow/SKILL.md   # TDD RED/GREEN/REFACTOR 규칙 (프리로드)
@@ -289,6 +307,8 @@ so-adk/
 │       └── settings.json                  # "agent": "so-orchestrator" — 메인 스레드 교체
 ├── install.sh / install.ps1               # 레거시 curl 설치용 마이그레이션 래퍼
 ├── tests/run-checks.sh                    # 정적 계약 검사
+├── tests/run-evals.sh                     # 라우팅 회귀 eval (모델 호출 — 비용 발생)
+├── evals/                                 # claude plugin eval 케이스 (route-*)
 └── specs/                                 # SPEC 파일
 ```
 
@@ -352,6 +372,15 @@ bash tests/run-checks.sh
 ```
 
 플러그인 레이아웃에 대한 정적 계약 검사입니다: 매니페스트, 훅 등록, frontmatter, 스킬 네임스페이스, 오케스트레이터↔에이전트 참조 일치성(양방향), 커밋된 `settings.json`의 키 경계와 마켓플레이스 source 스키마, 마이그레이션 래퍼의 동작. `claude` CLI가 `PATH`에 있으면 `claude plugin validate` 검사가 포함되고, 없으면 SKIP됩니다.
+
+`run-checks.sh` 는 `node --test tests/workflows.test.mjs` 도 실행합니다: `agent()` 를 스텁으로 바꾼 워크플로 제어 흐름 단위 테스트(모델 호출 없음). `node` 가 `PATH` 에 없으면 SKIP.
+
+```bash
+bash tests/run-evals.sh            # 라우팅 회귀 eval, runs=1
+bash tests/run-evals.sh --runs 3   # 흔들림 확인
+```
+
+라우팅 회귀 eval(`claude plugin eval`)은 `evals/route-*` 케이스마다 사용자 발화 하나를 오케스트레이터에 보내고, 어느 에이전트·스킬로 보냈는지 확인합니다. 실제 모델을 호출하므로(케이스 1회 약 $0.2~0.3) `run-checks.sh`에는 **넣지 않았습니다** — 오케스트레이터 라우팅이나 에이전트 `description`을 바꿨을 때 돌리세요. `run-checks.sh`는 필수 케이스 존재와 grader가 실재 에이전트를 가리키는지만 봅니다.
 
 ### 릴리스
 

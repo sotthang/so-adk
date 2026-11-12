@@ -3,7 +3,6 @@ name: so-debugger
 description: Bug investigator. Analyzes errors, stack traces, and failing tests to find root cause, then writes a minimal reproducing test before fixing. Invoke when user reports an error, broken test, or unexpected behavior.
 tools: Read, Grep, Glob, Bash, Write, Edit, Skill
 model: sonnet
-permissionMode: acceptEdits
 maxTurns: 50
 skills:
   - so-foundation

@@ -3,7 +3,6 @@ name: so-preflight
 description: Pre-merge safety checker. Runs tests, checks for lint errors, reviews for obvious security issues, and confirms the branch is ready to merge or deploy. Invoke automatically before PR creation or when user asks if code is ready.
 tools: Read, Grep, Glob, Bash, Skill
 model: sonnet
-permissionMode: default
 maxTurns: 30
 skills:
   - so-foundation

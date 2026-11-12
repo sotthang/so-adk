@@ -3,7 +3,6 @@ name: so-docs
 description: Documentation writer. Updates README, inline comments, and SPEC status after implementation is complete. Final step of the pipeline.
 tools: Read, Grep, Glob, Edit, Write, Bash, Skill
 model: haiku
-permissionMode: acceptEdits
 maxTurns: 30
 skills:
   - so-foundation

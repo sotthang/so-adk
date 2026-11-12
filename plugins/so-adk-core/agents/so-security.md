@@ -4,7 +4,6 @@ description: Security reviewer. Performs deep security analysis on code changes 
 tools: Read, Grep, Glob, Bash, Skill
 model: opus
 effort: high
-permissionMode: default
 maxTurns: 30
 skills:
   - so-foundation

@@ -3,7 +3,6 @@ name: so-performance
 description: Performance analyst. Identifies runtime bottlenecks, N+1 queries, inefficient algorithms, and memory issues. Invoke when user reports slowness, timeouts, or high resource usage. Read-only — produces a report, does not fix code.
 tools: Read, Grep, Glob, Bash, Skill
 model: sonnet
-permissionMode: default
 maxTurns: 30
 skills:
   - so-foundation
