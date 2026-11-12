@@ -240,6 +240,10 @@ SO-ADK가 요청 유형을 자동으로 판단합니다:
 | Spike | sonnet | 미검증 가정 실측, 저장소 사실 검증 |
 | Security | opus | 깊은 보안 분석에 강한 추론 필요 |
 
+**Fable 한도가 다 차면.** Fable 은 주간 한도가 따로 있어 다른 한도보다 먼저 소진될 수 있습니다. Claude Code 의 `fallbackModel` 은 rate/usage limit 에서 **발동하지 않으므로** 오케스트레이터가 맡습니다: Fable 에이전트(Planner, Architect)가 사용 한도로 실패하면 묻지 않고 `opus` 로 재디스패치하고, 한 줄로 알린 뒤, 세션 끝까지 Fable 에이전트를 `opus` 로 호출합니다. `sonnet` 으로는 내리지 않습니다. 오케스트레이터 플러그인 없이 쓸 때는 수동으로 전환하세요: `ANTHROPIC_DEFAULT_FABLE_MODEL=claude-opus-5-5 claude`.
+
+`so-security` 는 Fable 에 두지 마세요: Fable 은 사이버보안으로 분류된 요청을 다른 모델로 돌리는데, 서브에이전트 안에서는 이것이 실패로 끝납니다.
+
 ---
 
 ## 저장소 구조

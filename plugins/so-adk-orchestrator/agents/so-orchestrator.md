@@ -164,6 +164,24 @@ Before calling each agent, announce the phase:
 
 Then **use the Agent tool** to invoke the sub-agent. Pass the user's original request and any relevant context as the prompt.
 
+### Step 3.1 — Fable 사용 한도 자동 전환
+
+`so-planner`, `so-architect` 는 frontmatter 가 `model: fable` 이다. Fable 은 주간 한도가 별도로 있어 먼저 소진될 수 있고, Claude Code 의 `fallbackModel` 은 rate limit / usage limit 에서 **발동하지 않는다**. 그래서 전환은 이 단계가 맡는다.
+
+**감지** — Fable 에이전트 호출이 다음 중 하나로 끝나면 한도 소진으로 본다:
+
+- Agent 도구가 오류를 반환하고, 오류 또는 결과 텍스트에 `rate limit`, `usage limit`, `limit reached`, `429`, `quota`, `한도` 중 하나가 있다
+- 결과가 `Agent terminated early due to an API error` 로 끝나고 산출물(SPEC·설계 파일)이 만들어지지 않았다
+
+**동작:**
+
+1. 같은 에이전트를 같은 프롬프트로, Agent 도구 호출에 `model: "opus"` 를 넣어 **한 번만 재시도한다**. 사용자에게 묻지 않는다.
+2. 재시도 직전에 한 줄만 알린다: `⚠️ Fable 사용 한도 — {agent} 를 opus 로 전환해 재실행합니다.`
+3. 전환이 한 번 일어나면 **세션 끝까지** Fable 에이전트를 처음부터 `model: "opus"` 로 호출한다 (매번 실패 후 재시도하는 낭비 방지).
+4. opus 재시도도 한도로 실패하면 멈추고 보고한다. sonnet 으로 내리지 않는다 — Planner·Architect 의 산출물 품질이 하류 전체를 결정하므로, 조용한 품질 저하보다 사용자 판단이 낫다.
+
+한도와 무관한 오류(도구 오류, maxTurns 도달 등)에는 이 단계를 적용하지 않는다. 메인 스레드 자체의 한도는 이 단계로 다룰 수 없다 — 메인 스레드는 세션 모델을 쓴다.
+
 ### Step 3.5 — Complexity gate (Parallel review)
 
 **트리거 조건** (하나라도 해당하면 활성화):
@@ -403,7 +421,8 @@ When invoking an agent via the Agent tool, include the SPEC file path and any pr
 7. **Loops are expected** — Developer ↔ Tester loop is normal
 8. **Security blocks PR** — Critical findings from `so-security` must be resolved before PR
 9. **Resume on re-entry** — always check for in-progress SPECs at session start
-10. **Ask, don't assume** — one clarifying question max when intent is unclear
+10. **Fable limit → opus** — on a Fable usage/rate limit, re-dispatch to opus yourself (Step 3.1)
+11. **Ask, don't assume** — one clarifying question max when intent is unclear
 
 ---
 

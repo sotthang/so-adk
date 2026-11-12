@@ -278,6 +278,15 @@ offers to resume from where it left off.
 | Spike | sonnet | Measure unverified assumptions, validate facts against repository reality |
 | Security | opus | Deep security analysis requires strong reasoning |
 
+**When the Fable limit runs out.** Fable has its own weekly cap and can be exhausted before your other
+limits. Claude Code's `fallbackModel` does **not** fire on rate/usage limits, so the orchestrator
+handles it: when a Fable agent (Planner, Architect) fails on a usage limit, it re-dispatches that agent
+to `opus` without asking, tells you in one line, and keeps using `opus` for Fable agents for the rest of
+the session. It never drops to `sonnet`. Without the orchestrator plugin, switch by hand:
+`ANTHROPIC_DEFAULT_FABLE_MODEL=claude-opus-5-5 claude`.
+
+Keep `so-security` off Fable: Fable reroutes cybersecurity-flagged requests, which fails inside a subagent.
+
 ---
 
 ## Repository structure

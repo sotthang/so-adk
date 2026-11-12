@@ -42,6 +42,7 @@
 # | SPEC-007 AC-R1/R2 (단독 호출 인계)      | check_standalone_handoff_rule          | GREEN  |
 # | SPEC-009 R1/R2 (무시 필드·없는 도구)   | check_no_ignored_plugin_agent_fields   | GREEN  |
 # | SPEC-009 R3 (core 의존 선언)            | check_orchestrator_declares_core_dependency | GREEN |
+# | SPEC-009 R4 (Fable 한도 → opus)         | check_fable_fallback_rule              | GREEN  |
 # | AC-R2a (core plugin validate)           | check_plugin_validate_core             | GREEN  |
 # | AC-R2b (hooks.json 스키마)              | check_hooks_json_valid                 | GREEN  |
 # | AC-R2d (skills: 플레인 이름)            | check_frontmatter 계열 — 무수정(리졸버)| N/A    |
@@ -1817,6 +1818,44 @@ check_orchestrator_declares_core_dependency() {
   fi
 }
 
+# check_fable_fallback_rule — Fable 사용 한도 시 orchestrator 가 스스로 opus 로 재디스패치한다 (SPEC-009 R4)
+# Claude Code 의 fallbackModel 은 rate/usage limit 에서 발동하지 않으므로(model-config 문서) 하네스가 맡는다.
+# 대상 에이전트 목록은 frontmatter 에서 동적으로 뽑는다 — 새 Fable 에이전트가 생기면 규칙 누락이 RED 가 된다.
+check_fable_fallback_rule() {
+  local name="check_fable_fallback_rule"
+  local orch adir sect failed=0 a
+  orch="$(resolve_orchestrator_file)"; adir="$(resolve_agents_dir)"
+  sect="$(awk '/^### Step 3\.1 /{f=1; next} f && /^##/{exit} f{print}' "$orch")"
+  if [ -z "$sect" ]; then
+    echo "[FAIL] $name: orchestrator has no '### Step 3.1' section" >&2
+    fail "$name"; return
+  fi
+  local fable_agents
+  fable_agents="$(grep -l '^model: fable$' "$adir"/*.md 2>/dev/null | xargs -n1 basename 2>/dev/null | sed 's/\.md$//')"
+  if [ -z "$fable_agents" ]; then
+    echo "[FAIL] $name: no agent has 'model: fable' — rule target is empty" >&2
+    failed=1
+  fi
+  for a in $fable_agents; do
+    if ! grep -qF -- "\`$a\`" <<<"$sect"; then
+      echo "[FAIL] $name: Step 3.1 does not cover Fable agent '$a'" >&2
+      failed=1
+    fi
+  done
+  local phrase
+  for phrase in 'model: "opus"' '사용자에게 묻지 않는다' '한 번만 재시도한다' '세션 끝까지' 'sonnet 으로 내리지 않는다'; do
+    if ! grep -qF -- "$phrase" <<<"$sect"; then
+      echo "[FAIL] $name: Step 3.1 missing canonical phrase: $phrase" >&2
+      failed=1
+    fi
+  done
+  if ! awk '/^## Rules/{f=1; next} f && /^## /{exit} f{print}' "$orch" | grep -qF 'Step 3.1'; then
+    echo "[FAIL] $name: '## Rules' does not reference Step 3.1" >&2
+    failed=1
+  fi
+  if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
+}
+
 check_hook_session_resume_spec_filter
 check_hook_session_resume_jq_fallback
 check_migrate_flat_skill_layout
@@ -1828,6 +1867,7 @@ check_review_intent_routing
 check_standalone_handoff_rule
 check_no_ignored_plugin_agent_fields
 check_orchestrator_declares_core_dependency
+check_fable_fallback_rule
 
 echo ""
 echo "Summary: $PASS passed, $FAIL failed, $SKIP skipped"
