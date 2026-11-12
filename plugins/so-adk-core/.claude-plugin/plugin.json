@@ -1,6 +1,6 @@
 {
   "name": "so-adk-core",
   "version": "1.0.4",
-  "description": "SO-ADK core: 16 pipeline agents, 8 skills, 2 hooks (SessionStart resume + PostToolUse lint/typecheck gate). WARNING: at User scope the hooks fire globally in EVERY project (lint/typecheck on every Edit, blocking on failure; specs scan on every session start) - install at Project or Local scope.",
+  "description": "SO-ADK core: 16 pipeline agents, 8 skills, 2 workflows (tdd-cycle, pr-gate), 2 hooks (SessionStart resume + PostToolUse lint/typecheck gate). WARNING: at User scope the hooks fire globally in EVERY project (lint/typecheck on every Edit, blocking on failure; specs scan on every session start) - install at Project or Local scope.",
   "author": { "name": "sotthang", "email": "sotthang@gmail.com" }
 }

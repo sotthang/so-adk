@@ -44,6 +44,8 @@
 # | SPEC-009 R3 (core 의존 선언)            | check_orchestrator_declares_core_dependency | GREEN |
 # | SPEC-009 R4 (Fable 한도 → opus)         | check_fable_fallback_rule              | GREEN  |
 # | SPEC-009 R5 (라우팅 eval 정적 무결성)   | check_routing_evals (실행은 tests/run-evals.sh) | GREEN |
+# | SPEC-010 R1/R2 (워크플로 제어 흐름)     | check_workflow_unit_tests (node --test) | GREEN |
+# | SPEC-010 R3 (워크플로 정적 무결성)      | check_workflows_static                 | GREEN  |
 # | AC-R2a (core plugin validate)           | check_plugin_validate_core             | GREEN  |
 # | AC-R2b (hooks.json 스키마)              | check_hooks_json_valid                 | GREEN  |
 # | AC-R2d (skills: 플레인 이름)            | check_frontmatter 계열 — 무수정(리졸버)| N/A    |
@@ -1884,6 +1886,46 @@ check_routing_evals() {
   if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
 }
 
+# check_workflow_unit_tests — workflows/*.js 제어 흐름 단위 테스트 (SPEC-010 R1/R2)
+check_workflow_unit_tests() {
+  local name="check_workflow_unit_tests"
+  if ! command -v node &>/dev/null; then skip "$name" "node not in PATH"; return; fi
+  if node --test "$REPO_ROOT/tests/workflows.test.mjs" &>/dev/null; then
+    pass "$name"
+  else
+    echo "[FAIL] $name: node --test tests/workflows.test.mjs failed" >&2
+    fail "$name"
+  fi
+}
+
+# check_workflows_static — 워크플로 스크립트 정적 무결성 (SPEC-010 R3)
+# meta.name == 파일명, agentType 은 실재 에이전트, Date.now/Math.random/new Date() 금지(재개를 깨뜨린다)
+check_workflows_static() {
+  local name="check_workflows_static"
+  local wdir="$REPO_ROOT/plugins/so-adk-core/workflows" adir failed=0 f base ref
+  adir="$(resolve_agents_dir)"
+  for base in tdd-cycle pr-gate; do
+    [ -f "$wdir/$base.js" ] || { echo "[FAIL] $name: missing workflows/$base.js" >&2; failed=1; }
+  done
+  for f in "$wdir"/*.js; do
+    [ -f "$f" ] || continue
+    base="$(basename "$f" .js)"
+    if ! head -1 "$f" | grep -qx 'export const meta = {'; then
+      echo "[FAIL] $name: $base.js must start with 'export const meta = {'" >&2; failed=1
+    fi
+    if ! grep -qE "^  name: '${base}',$" "$f"; then
+      echo "[FAIL] $name: $base.js meta.name must be '$base'" >&2; failed=1
+    fi
+    if grep -nE 'Date\.now\(|Math\.random\(|new Date\(\)' "$f" >&2; then
+      echo "[FAIL] $name: $base.js uses a nondeterministic API (breaks resume)" >&2; failed=1
+    fi
+    while IFS= read -r ref; do
+      [ -f "$adir/$ref.md" ] || { echo "[FAIL] $name: $base.js agentType references nonexistent agent '$ref'" >&2; failed=1; }
+    done < <(grep -oE "so-adk-core:so-[a-z-]+" "$f" | sed 's/^so-adk-core://' | sort -u)
+  done
+  if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
+}
+
 check_hook_session_resume_spec_filter
 check_hook_session_resume_jq_fallback
 check_migrate_flat_skill_layout
@@ -1897,6 +1939,8 @@ check_no_ignored_plugin_agent_fields
 check_orchestrator_declares_core_dependency
 check_fable_fallback_rule
 check_routing_evals
+check_workflow_unit_tests
+check_workflows_static
 
 echo ""
 echo "Summary: $PASS passed, $FAIL failed, $SKIP skipped"
