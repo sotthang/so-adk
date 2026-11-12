@@ -46,6 +46,7 @@
 # | SPEC-009 R5 (라우팅 eval 정적 무결성)   | check_routing_evals (실행은 tests/run-evals.sh) | GREEN |
 # | SPEC-010 R1/R2 (워크플로 제어 흐름)     | check_workflow_unit_tests (node --test) | GREEN |
 # | SPEC-010 R3 (워크플로 정적 무결성)      | check_workflows_static                 | GREEN  |
+# | SPEC-010 R4 (orchestrator 연동+폴백)    | check_orchestrator_uses_workflows      | GREEN  |
 # | AC-R2a (core plugin validate)           | check_plugin_validate_core             | GREEN  |
 # | AC-R2b (hooks.json 스키마)              | check_hooks_json_valid                 | GREEN  |
 # | AC-R2d (skills: 플레인 이름)            | check_frontmatter 계열 — 무수정(리졸버)| N/A    |
@@ -1926,6 +1927,34 @@ check_workflows_static() {
   if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
 }
 
+# check_orchestrator_uses_workflows — Step 5/6 이 워크플로를 쓰고, 못 쓸 때 수동 절차로 내려간다 (SPEC-010 R4)
+check_orchestrator_uses_workflows() {
+  local name="check_orchestrator_uses_workflows"
+  local orch failed=0 step wfname sect
+  orch="$(resolve_orchestrator_file)"
+  for pair in "5:tdd-cycle" "6:pr-gate"; do
+    step="${pair%%:*}"; wfname="${pair#*:}"
+    sect="$(awk -v h="### Step ${step} " 'index($0,h)==1{f=1; next} f && /^##/{exit} f{print}' "$orch")"
+    if ! grep -qF -- "\`so-adk-core:${wfname}\`" <<<"$sect"; then
+      echo "[FAIL] $name: Step $step does not run workflow so-adk-core:${wfname}" >&2; failed=1
+    fi
+    if ! grep -qF -- 'Workflow 를 쓸 수 없으면' <<<"$sect"; then
+      echo "[FAIL] $name: Step $step has no manual fallback ('Workflow 를 쓸 수 없으면')" >&2; failed=1
+    fi
+  done
+  # 반환 status 를 전부 처리하는지 — 처리 안 된 status 는 조용히 흘러간다
+  sect="$(awk 'index($0,"### Step 5 ")==1{f=1; next} f && /^##/{exit} f{print}' "$orch")"
+  local st
+  for st in green exhausted not-red refactor-broke error; do
+    grep -qF -- "\`$st\`" <<<"$sect" || { echo "[FAIL] $name: Step 5 does not handle status '$st'" >&2; failed=1; }
+  done
+  sect="$(awk 'index($0,"### Step 6 ")==1{f=1; next} f && /^##/{exit} f{print}' "$orch")"
+  for st in proceed ask stop; do
+    grep -qF -- "\`$st\`" <<<"$sect" || { echo "[FAIL] $name: Step 6 does not handle decision '$st'" >&2; failed=1; }
+  done
+  if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
+}
+
 check_hook_session_resume_spec_filter
 check_hook_session_resume_jq_fallback
 check_migrate_flat_skill_layout
@@ -1941,6 +1970,7 @@ check_fable_fallback_rule
 check_routing_evals
 check_workflow_unit_tests
 check_workflows_static
+check_orchestrator_uses_workflows
 
 echo ""
 echo "Summary: $PASS passed, $FAIL failed, $SKIP skipped"

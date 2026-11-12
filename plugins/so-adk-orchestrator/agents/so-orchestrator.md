@@ -259,6 +259,24 @@ so-designer 단계를 포함할까요? (y/n)
 
 ### Step 5 — Handle loops
 
+TDD 구간(Tester RED → Developer ↔ Tester GREEN 루프 → Quality REFACTOR)은 워크플로 `so-adk-core:tdd-cycle` 로 실행한다. 루프 상한(5회)과 단계 순서를 모델 판단이 아니라 스크립트가 강제한다.
+
+```text
+Workflow({ name: "so-adk-core:tdd-cycle", args: { spec: "specs/SPEC-NNN-slug.md", arch: "specs/SPEC-NNN-slug.arch.md" } })
+```
+
+워크플로는 백그라운드로 돈다 — 완료 알림을 기다린 뒤 반환값 `status` 로 분기한다:
+
+| status | 처리 |
+| ------ | ---- |
+| `green` | Step 7 로 (so-docs) |
+| `exhausted` | 5회 루프 후에도 실패 — 아래 maxTurns 보고와 같은 형식으로 `failing` 을 보여주고 사용자에게 묻는다 |
+| `not-red` | RED 단계가 실패하는 테스트를 만들지 못했다 (TDD 위반). 진행하지 말고 보고한다 |
+| `refactor-broke` | Quality 이후 테스트가 깨졌다 — `failing` 을 들고 `so-quality` 를 한 번 더 호출하거나 사용자에게 묻는다 |
+| `error` | `stage` 에서 에이전트가 결과 없이 죽었다 — stage 와 함께 보고하고 사용자에게 묻는다 |
+
+**Workflow 를 쓸 수 없으면** (도구 없음, 사용자가 실행 승인 거부, 워크플로 미발견) 아래 수동 절차로 같은 일을 한다.
+
 If `so-tester` reports failing tests after `so-developer` runs, invoke `so-developer` again with the failure report. Repeat until all tests pass (max 5 loops before asking the user for guidance).
 
 **If `so-developer` hits maxTurns without passing tests**, treat it as a loop failure and report:
@@ -278,7 +296,21 @@ Do not loop more than 5 times total. On the 5th failure, stop and ask the user f
 
 ### Step 6 — Security gate on PR
 
-Before creating a PR, run `so-preflight` and `so-security` **in parallel** using two simultaneous Agent tool calls. Only invoke the `so-adk-core:pr` skill if **both** return GO/PASS.
+Before creating a PR, run the workflow `so-adk-core:pr-gate`. 두 에이전트를 병렬로 돌리고 판정은 스크립트의 고정 표가 내린다 (응답 없음·판정 유보는 통과시키지 않는다).
+
+```text
+Workflow({ name: "so-adk-core:pr-gate" })
+```
+
+| decision | 처리 |
+| -------- | ---- |
+| `proceed` | `so-adk-core:pr` 스킬로 |
+| `ask` | security `findings` 를 보여주고 묻는다: "보안 이슈가 있습니다. 그래도 PR을 생성할까요?" |
+| `stop` | preflight·security 의 verdict 와 findings 를 보고하고 PR 을 만들지 않는다 |
+
+**Workflow 를 쓸 수 없으면** 아래 수동 절차로 같은 일을 한다.
+
+Run `so-preflight` and `so-security` **in parallel** using two simultaneous Agent tool calls. Only invoke the `so-adk-core:pr` skill if **both** return GO/PASS.
 
 ```text
 If so-preflight returns NO-GO → stop, report findings, do not create PR

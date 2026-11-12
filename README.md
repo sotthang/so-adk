@@ -257,6 +257,22 @@ SO-ADK automatically detects which mode to use:
 If a pipeline is interrupted mid-way, SO-ADK detects the in-progress SPEC on the next session and
 offers to resume from where it left off.
 
+### Workflows
+
+Two pipeline segments run as Workflow scripts instead of being sequenced by the orchestrator's prompt,
+so their control flow is enforced by code, not model judgment:
+
+| Workflow | What it fixes in code |
+| -------- | --------------------- |
+| `so-adk-core:tdd-cycle` | RED → Developer↔Tester loop capped at **5** → Quality → re-verify. Returns `green`, `exhausted`, `not-red`, `refactor-broke` or `error` |
+| `so-adk-core:pr-gate` | `so-preflight` and `so-security` **in parallel**; a fixed table decides `proceed` / `ask` / `stop`. A missing result or HOLD (empty diff) never passes |
+
+Human checkpoints (SPEC approval, "ask" decisions, loop exhaustion) stay in the orchestrator — the
+workflows return a status and the orchestrator asks you. Each agent keeps its own model (the workflow
+dispatches by `agentType`). If the Workflow tool is unavailable or you decline it, the orchestrator falls
+back to the manual Agent sequence. Claude Code asks you to approve each workflow run; to skip that, add
+`"Workflow"` to `permissions.allow` in `.claude/settings.local.json`.
+
 ### Agent model assignment
 
 | Agent | Model | Reason |
@@ -317,6 +333,9 @@ so-adk/
 │   │   │   ├── so-performance.md          # Bottleneck analysis, read-only (sonnet)
 │   │   │   ├── so-spike.md                # Verify unverified assumptions (sonnet)
 │   │   │   └── so-security.md             # OWASP security review (opus)
+│   │   ├── workflows/                     # deterministic pipeline segments (Workflow scripts)
+│   │   │   ├── tdd-cycle.js               # RED → GREEN loop (max 5) → REFACTOR + verify
+│   │   │   └── pr-gate.js                 # preflight + security in parallel, fail-closed verdict
 │   │   ├── skills/                        # each skill is a directory with SKILL.md
 │   │   │   ├── so-foundation/SKILL.md     # Core principles for all agents (preloaded)
 │   │   │   ├── so-tdd-workflow/SKILL.md   # TDD RED/GREEN/REFACTOR rules (preloaded)
@@ -423,6 +442,9 @@ namespacing, orchestrator↔agent reference consistency (both directions), the c
 `settings.json` key boundary and marketplace source schema, and the migration wrapper's behavior.
 `claude plugin validate` checks are included when the `claude` CLI is on `PATH`, and skipped
 otherwise.
+
+`run-checks.sh` also runs `node --test tests/workflows.test.mjs`: unit tests of the workflows' control
+flow with a stubbed `agent()` (no model calls). Skipped when `node` is not on `PATH`.
 
 ```bash
 bash tests/run-evals.sh            # routing regression evals, runs=1

@@ -219,6 +219,17 @@ SO-ADK가 요청 유형을 자동으로 판단합니다:
 
 파이프라인이 중간에 중단된 경우, 다음 세션에서 미완료 SPEC을 감지하고 중단된 지점부터 이어서 진행할지 물어봅니다.
 
+### 워크플로
+
+파이프라인 중 두 구간은 오케스트레이터 프롬프트가 순서를 짜는 대신 Workflow 스크립트로 돕니다. 제어 흐름을 모델 판단이 아니라 코드가 강제합니다:
+
+| 워크플로 | 코드로 고정하는 것 |
+| -------- | ------------------ |
+| `so-adk-core:tdd-cycle` | RED → Developer↔Tester 루프 **최대 5회** → Quality → 재검증. `green` / `exhausted` / `not-red` / `refactor-broke` / `error` 반환 |
+| `so-adk-core:pr-gate` | `so-preflight` 와 `so-security` **병렬** 실행, 고정 표가 `proceed` / `ask` / `stop` 판정. 응답 없음·판정 유보(빈 diff)는 절대 통과하지 않음 |
+
+사람 확인 지점(SPEC 승인, ask 판정, 루프 소진)은 오케스트레이터에 남습니다 — 워크플로는 status 를 돌려주고 오케스트레이터가 묻습니다. 각 에이전트는 자기 모델을 유지합니다(`agentType` 으로 디스패치). Workflow 도구를 쓸 수 없거나 실행을 거부하면 기존 Agent 수동 절차로 내려갑니다. Claude Code 는 워크플로 실행마다 승인을 묻습니다 — 생략하려면 `.claude/settings.local.json` 의 `permissions.allow` 에 `"Workflow"` 를 추가하세요.
+
 ### 에이전트별 모델 배정
 
 | 에이전트 | 모델 | 이유 |
@@ -274,6 +285,9 @@ so-adk/
 │   │   │   ├── so-performance.md          # 병목 분석, 읽기 전용 (sonnet)
 │   │   │   ├── so-spike.md                # 미검증 가정 검증 (sonnet)
 │   │   │   └── so-security.md             # OWASP 보안 검토 (opus)
+│   │   ├── workflows/                     # 결정적 파이프라인 구간 (Workflow 스크립트)
+│   │   │   ├── tdd-cycle.js               # RED → GREEN 루프(최대 5) → REFACTOR + 재검증
+│   │   │   └── pr-gate.js                 # preflight + security 병렬, 실패 시 닫힘 판정
 │   │   ├── skills/                        # 각 스킬은 SKILL.md를 가진 디렉터리
 │   │   │   ├── so-foundation/SKILL.md     # 모든 에이전트 공통 원칙 (프리로드)
 │   │   │   ├── so-tdd-workflow/SKILL.md   # TDD RED/GREEN/REFACTOR 규칙 (프리로드)
@@ -358,6 +372,8 @@ bash tests/run-checks.sh
 ```
 
 플러그인 레이아웃에 대한 정적 계약 검사입니다: 매니페스트, 훅 등록, frontmatter, 스킬 네임스페이스, 오케스트레이터↔에이전트 참조 일치성(양방향), 커밋된 `settings.json`의 키 경계와 마켓플레이스 source 스키마, 마이그레이션 래퍼의 동작. `claude` CLI가 `PATH`에 있으면 `claude plugin validate` 검사가 포함되고, 없으면 SKIP됩니다.
+
+`run-checks.sh` 는 `node --test tests/workflows.test.mjs` 도 실행합니다: `agent()` 를 스텁으로 바꾼 워크플로 제어 흐름 단위 테스트(모델 호출 없음). `node` 가 `PATH` 에 없으면 SKIP.
 
 ```bash
 bash tests/run-evals.sh            # 라우팅 회귀 eval, runs=1
