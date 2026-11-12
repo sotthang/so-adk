@@ -862,9 +862,9 @@ check_hooks_json_valid() {
     failed=1
   fi
   local non_plugin_root
-  non_plugin_root="$(jq -r '[.hooks | to_entries[]?.value[]?.hooks[]?.command] | map(select(startswith("${CLAUDE_PLUGIN_ROOT}") | not)) | length' "$hooks_json" 2>/dev/null)"
+  non_plugin_root="$(jq -r '[.hooks | to_entries[]?.value[]?.hooks[]?.command] | map(select(startswith("\"${CLAUDE_PLUGIN_ROOT}/") | not)) | length' "$hooks_json" 2>/dev/null)"
   if [ "${non_plugin_root:-1}" != "0" ]; then
-    echo "[FAIL] $name: not every hook command starts with \${CLAUDE_PLUGIN_ROOT}" >&2
+    echo "[FAIL] $name: not every hook command starts with a quoted \"\${CLAUDE_PLUGIN_ROOT}/ (validate --strict 경고: 공백 경로 분리)" >&2
     failed=1
   fi
   local script
