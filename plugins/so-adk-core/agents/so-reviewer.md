@@ -4,7 +4,6 @@ description: Critical SPEC evaluator. Use after Planner to validate requirements
 tools: Read, Grep, Glob, Edit, Write, Skill
 model: opus
 effort: high
-permissionMode: acceptEdits
 maxTurns: 20
 skills:
   - so-foundation

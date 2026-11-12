@@ -40,6 +40,8 @@
 # | SPEC-005 AC-R4/R5 (diff 기준선)         | check_diff_base_detection              | GREEN  |
 # | SPEC-006 AC-R1/R2/R4/R5 (리뷰 라우팅)   | check_review_intent_routing            | GREEN  |
 # | SPEC-007 AC-R1/R2 (단독 호출 인계)      | check_standalone_handoff_rule          | GREEN  |
+# | SPEC-009 R1/R2 (무시 필드·없는 도구)   | check_no_ignored_plugin_agent_fields   | GREEN  |
+# | SPEC-009 R3 (core 의존 선언)            | check_orchestrator_declares_core_dependency | GREEN |
 # | AC-R2a (core plugin validate)           | check_plugin_validate_core             | GREEN  |
 # | AC-R2b (hooks.json 스키마)              | check_hooks_json_valid                 | GREEN  |
 # | AC-R2d (skills: 플레인 이름)            | check_frontmatter 계열 — 무수정(리졸버)| N/A    |
@@ -1777,6 +1779,44 @@ check_standalone_handoff_rule() {
   if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
 }
 
+# check_no_ignored_plugin_agent_fields — 플러그인 에이전트가 무시되는 frontmatter 필드를 갖지 않는다 (SPEC-009 R1)
+# Claude Code 는 보안상 플러그인 에이전트의 permissionMode / hooks / mcpServers / initialPrompt 를 무시한다
+# (https://code.claude.com/docs/en/sub-agents.md). 남겨두면 적용되는 것처럼 읽혀 오해를 낳는다.
+check_no_ignored_plugin_agent_fields() {
+  local name="check_no_ignored_plugin_agent_fields"
+  local failed=0 f fm field
+  for f in "$REPO_ROOT"/plugins/*/agents/*.md; do
+    [ -f "$f" ] || continue
+    fm="$(awk 'NR==1 && /^---$/{f=1; next} f && /^---$/{exit} f{print}' "$f")"
+    for field in permissionMode hooks mcpServers initialPrompt; do
+      if grep -q "^${field}:" <<<"$fm"; then
+        echo "[FAIL] $name: $(basename "$f") has '${field}:' — ignored for plugin agents" >&2
+        failed=1
+      fi
+    done
+    # 존재하지 않는 도구는 오류 없이 버려진다 — MultiEdit 은 현행 Claude Code 에 없다 (실측: --tools "Read,MultiEdit" → Read 만)
+    if grep -E '^tools:' <<<"$fm" | grep -qw 'MultiEdit'; then
+      echo "[FAIL] $name: $(basename "$f") lists nonexistent tool 'MultiEdit'" >&2
+      failed=1
+    fi
+  done
+  if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
+}
+
+# check_orchestrator_declares_core_dependency — orchestrator manifest 가 so-adk-core 의존을 선언한다 (SPEC-009 R3)
+# orchestrator 는 core 의 에이전트를 이름으로 디스패치하므로 core 없이 켜면 라우팅이 전부 실패한다.
+check_orchestrator_declares_core_dependency() {
+  local name="check_orchestrator_declares_core_dependency"
+  if ! command -v jq &>/dev/null; then skip "$name" "jq not in PATH"; return; fi
+  local f="$REPO_ROOT/plugins/so-adk-orchestrator/.claude-plugin/plugin.json"
+  if jq -e '.dependencies[]? | (if type=="string" then . else .name end) | select(.=="so-adk-core" or .=="so-adk-core@so-adk")' "$f" &>/dev/null; then
+    pass "$name"
+  else
+    echo "[FAIL] $name: plugin.json .dependencies does not include so-adk-core" >&2
+    fail "$name"
+  fi
+}
+
 check_hook_session_resume_spec_filter
 check_hook_session_resume_jq_fallback
 check_migrate_flat_skill_layout
@@ -1786,6 +1826,8 @@ check_migrate_preserves_file_mode
 check_diff_base_detection
 check_review_intent_routing
 check_standalone_handoff_rule
+check_no_ignored_plugin_agent_fields
+check_orchestrator_declares_core_dependency
 
 echo ""
 echo "Summary: $PASS passed, $FAIL failed, $SKIP skipped"

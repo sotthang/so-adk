@@ -3,7 +3,6 @@ name: so-tester
 description: Test-first engineer. Writes tests before implementation (TDD RED phase). Also verifies tests pass after implementation (TDD GREEN verification). Invoke before developer for RED phase, or after developer to verify GREEN phase.
 tools: Read, Grep, Glob, Write, Edit, Bash, Skill
 model: sonnet
-permissionMode: acceptEdits
 maxTurns: 50
 skills:
   - so-foundation

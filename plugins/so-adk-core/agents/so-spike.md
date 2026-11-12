@@ -3,7 +3,6 @@ name: so-spike
 description: Verification spike agent. 미검증 가정을 scratchpad에서 실측하여 확정 사실표(양성/음성/측정불능)로 반환한다. 저장소 불변 — 저장소 파일을 절대 변경하지 않는다. Stateless, SPEC status 갱신 없음.
 tools: Read, Grep, Glob, Bash, Write, Skill
 model: sonnet
-permissionMode: default
 maxTurns: 30
 skills:
   - so-foundation

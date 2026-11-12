@@ -1,9 +1,8 @@
 ---
 name: so-developer
 description: Implementation engineer. Writes minimum code to make failing tests pass (TDD GREEN phase). Loops with Tester until all tests pass. Invoke after Tester writes RED phase tests.
-tools: Read, Grep, Glob, Write, Edit, MultiEdit, Bash, Skill
+tools: Read, Grep, Glob, Write, Edit, Bash, Skill
 model: sonnet
-permissionMode: acceptEdits
 maxTurns: 100
 skills:
   - so-foundation

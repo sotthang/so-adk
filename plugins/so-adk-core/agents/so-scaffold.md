@@ -3,7 +3,6 @@ name: so-scaffold
 description: Project scaffolder. Generates boilerplate file structure and empty implementations based on the Architect's design. Invoke after so-architect to create the skeleton before so-tester writes tests.
 tools: Read, Grep, Glob, Write, Skill
 model: sonnet
-permissionMode: acceptEdits
 maxTurns: 30
 skills:
   - so-foundation

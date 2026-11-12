@@ -3,7 +3,6 @@ name: so-auditor
 description: Continuous drift sensor. Stateless. Reports hints on dead code, stale deps, unused files, lingering Done SPECs, stale SPECs. Never auto-fixes.
 tools: Read, Grep, Glob, Bash
 model: sonnet
-permissionMode: default
 maxTurns: 20
 skills:
   - so-foundation
