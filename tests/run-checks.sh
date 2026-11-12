@@ -43,6 +43,7 @@
 # | SPEC-009 R1/R2 (무시 필드·없는 도구)   | check_no_ignored_plugin_agent_fields   | GREEN  |
 # | SPEC-009 R3 (core 의존 선언)            | check_orchestrator_declares_core_dependency | GREEN |
 # | SPEC-009 R4 (Fable 한도 → opus)         | check_fable_fallback_rule              | GREEN  |
+# | SPEC-009 R5 (라우팅 eval 정적 무결성)   | check_routing_evals (실행은 tests/run-evals.sh) | GREEN |
 # | AC-R2a (core plugin validate)           | check_plugin_validate_core             | GREEN  |
 # | AC-R2b (hooks.json 스키마)              | check_hooks_json_valid                 | GREEN  |
 # | AC-R2d (skills: 플레인 이름)            | check_frontmatter 계열 — 무수정(리졸버)| N/A    |
@@ -1856,6 +1857,33 @@ check_fable_fallback_rule() {
   if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
 }
 
+# check_routing_evals — 라우팅 회귀 eval 스위트의 정적 무결성 (SPEC-009 R5)
+# 실행(비용 발생)은 tests/run-evals.sh 가 맡는다. 여기서는 케이스 존재와 grader 참조만 본다.
+check_routing_evals() {
+  local name="check_routing_evals"
+  local edir="$REPO_ROOT/evals" adir failed=0 c
+  adir="$(resolve_agents_dir)"
+  local required=(route-greenfield-planner route-error-debugger route-explain-explainer
+    route-security-security route-slow-performance route-merge-preflight-security
+    route-code-review-skill route-review-ambiguous-asks route-spec-review-reviewer)
+  for c in "${required[@]}"; do
+    if [ ! -f "$edir/$c/prompt.md" ] || ! ls "$edir/$c/graders/"*.md &>/dev/null; then
+      echo "[FAIL] $name: missing eval case $c (prompt.md + graders/*.md)" >&2
+      failed=1
+    fi
+  done
+  # grader 가 참조하는 에이전트는 실재해야 한다 — 없는 대상(SPEC-006 F1 류)을 기대하는 grader 방지
+  local ref
+  while IFS= read -r ref; do
+    [ -n "$ref" ] || continue
+    if [ ! -f "$adir/$ref.md" ]; then
+      echo "[FAIL] $name: grader references nonexistent agent '$ref'" >&2
+      failed=1
+    fi
+  done < <(grep -rhoE '\?(so-[a-z-]+)"' "$edir"/*/graders/ 2>/dev/null | sed -E 's/^\?//; s/"$//' | sort -u)
+  if [ "$failed" -eq 0 ]; then pass "$name"; else fail "$name"; fi
+}
+
 check_hook_session_resume_spec_filter
 check_hook_session_resume_jq_fallback
 check_migrate_flat_skill_layout
@@ -1868,6 +1896,7 @@ check_standalone_handoff_rule
 check_no_ignored_plugin_agent_fields
 check_orchestrator_declares_core_dependency
 check_fable_fallback_rule
+check_routing_evals
 
 echo ""
 echo "Summary: $PASS passed, $FAIL failed, $SKIP skipped"

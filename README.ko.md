@@ -293,6 +293,8 @@ so-adk/
 │       └── settings.json                  # "agent": "so-orchestrator" — 메인 스레드 교체
 ├── install.sh / install.ps1               # 레거시 curl 설치용 마이그레이션 래퍼
 ├── tests/run-checks.sh                    # 정적 계약 검사
+├── tests/run-evals.sh                     # 라우팅 회귀 eval (모델 호출 — 비용 발생)
+├── evals/                                 # claude plugin eval 케이스 (route-*)
 └── specs/                                 # SPEC 파일
 ```
 
@@ -356,6 +358,13 @@ bash tests/run-checks.sh
 ```
 
 플러그인 레이아웃에 대한 정적 계약 검사입니다: 매니페스트, 훅 등록, frontmatter, 스킬 네임스페이스, 오케스트레이터↔에이전트 참조 일치성(양방향), 커밋된 `settings.json`의 키 경계와 마켓플레이스 source 스키마, 마이그레이션 래퍼의 동작. `claude` CLI가 `PATH`에 있으면 `claude plugin validate` 검사가 포함되고, 없으면 SKIP됩니다.
+
+```bash
+bash tests/run-evals.sh            # 라우팅 회귀 eval, runs=1
+bash tests/run-evals.sh --runs 3   # 흔들림 확인
+```
+
+라우팅 회귀 eval(`claude plugin eval`)은 `evals/route-*` 케이스마다 사용자 발화 하나를 오케스트레이터에 보내고, 어느 에이전트·스킬로 보냈는지 확인합니다. 실제 모델을 호출하므로(케이스 1회 약 $0.2~0.3) `run-checks.sh`에는 **넣지 않았습니다** — 오케스트레이터 라우팅이나 에이전트 `description`을 바꿨을 때 돌리세요. `run-checks.sh`는 필수 케이스 존재와 grader가 실재 에이전트를 가리키는지만 봅니다.
 
 ### 릴리스
 

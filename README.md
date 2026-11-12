@@ -336,6 +336,8 @@ so-adk/
 │       └── settings.json                  # "agent": "so-orchestrator" — main-thread replacement
 ├── install.sh / install.ps1               # migration wrapper for legacy curl installs
 ├── tests/run-checks.sh                    # static contract checks
+├── tests/run-evals.sh                     # routing regression evals (calls the model — costs money)
+├── evals/                                 # claude plugin eval cases (route-*)
 └── specs/                                 # SPEC files
 ```
 
@@ -421,6 +423,17 @@ namespacing, orchestrator↔agent reference consistency (both directions), the c
 `settings.json` key boundary and marketplace source schema, and the migration wrapper's behavior.
 `claude plugin validate` checks are included when the `claude` CLI is on `PATH`, and skipped
 otherwise.
+
+```bash
+bash tests/run-evals.sh            # routing regression evals, runs=1
+bash tests/run-evals.sh --runs 3   # check for flakiness
+```
+
+Routing regression evals (`claude plugin eval`): each case in `evals/route-*` sends one user utterance
+to the orchestrator and asserts which agent or skill it dispatched to. They call the real model
+(about $0.2–0.3 per case run), so they are **not** part of `run-checks.sh` — run them when you change
+the orchestrator's routing or an agent's `description`. `run-checks.sh` only checks that the required
+cases exist and that graders reference real agents.
 
 ### Releasing
 
